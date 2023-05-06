@@ -1,0 +1,12 @@
+// YOLOv7-tiny Network
+digraph {
+	input [label="Input Image"]
+	backbone [label=Backbone]
+	neck [label=Neck]
+	head [label=Head]
+	output [label=Output]
+	input -> backbone
+	backbone -> neck
+	neck -> head
+	head -> output
+}

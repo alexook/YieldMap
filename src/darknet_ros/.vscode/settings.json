@@ -1,0 +1,15 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/omen/fast_ws/devel/lib/python3/dist-packages",
+        "/home/omen/vins3_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/omen/fast_ws/devel/lib/python3/dist-packages",
+        "/home/omen/vins3_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "files.associations": {
+        "mutex": "cpp"
+    }
+}

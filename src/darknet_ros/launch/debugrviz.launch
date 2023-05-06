@@ -1,0 +1,13 @@
+<launch>
+    <node name="tf_test_node" pkg="tf_test" type="tf_test_node" />
+    <node name="darknet_ros" pkg="darknet_ros" type="darknet_node" output="screen" />
+        <param name="names_file" type="string" value="$(find darknet_ros)/apple.names" />
+        <param name="cfg_file" type="string" value="$(find darknet_ros)/cfg/yolov7-tiny.cfg" />
+        <param name="weights_file" type="string" value="$(find darknet_ros)/model/yolov7-tiny_final.weights" />
+        <param name="thresh" type="double" value="0.25" />
+        <param name="image_transport" value="compressed"/>
+
+    <!-- Start RViz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find darknet_ros)/rviz/dark.rviz"/>
+
+</launch>

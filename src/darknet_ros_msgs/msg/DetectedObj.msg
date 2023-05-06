@@ -1,0 +1,12 @@
+float64 prob
+uint64 x
+uint64 y
+uint64 w
+uint64 h
+float64 x_3d
+float64 y_3d
+float64 z_3d
+uint64 track_id
+uint64 frame_id
+uint64 obj_id
+float64 depth

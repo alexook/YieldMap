@@ -1,0 +1,11 @@
+build/
+devel/
+model/
+*.bag
+logs/
+*.weights
+.catkin_tools/
+cfg/
+
+
+

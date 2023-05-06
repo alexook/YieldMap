@@ -277,6 +277,7 @@ void YieldMap::projectDepthImage()
         }
 
 
+
     }
     ROS_WARN("proj_points_cnt = %d", proj_points_cnt_);
     

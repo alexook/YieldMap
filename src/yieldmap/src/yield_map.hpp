@@ -23,6 +23,7 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <image_transport/image_transport.h>
 #include <tf/transform_listener.h>
+#include <visualization_msgs/Marker.h>
 
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -68,6 +69,12 @@ struct MappingData
     std::vector<bbox_t> result_boxes_;
     std::vector<pair<double, bbox_t>> depth_boxes_;
 
+    // raycasting
+    Eigen::Vector2d rp1, rp2;
+
+    // project depth image
+    pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
+
     // flags of map state
     bool has_depth_;
     bool has_odom_;
@@ -75,23 +82,10 @@ struct MappingData
     bool has_detection_;
 
     int frame_cnt_;
+
+
 };
 
-class DetectedPerId
-{
-public:
-    const int track_id;
-    int obj_id;
-
-    Eigen::Vector3d state;
-    Eigen::Vector3d last_state;
-
-    int solve_flag;
-    int frame_count;
-    double update_time;
-
-    DetectedPerId(int _track_id) : track_id(_track_id) {}
-};
 
 class YieldMap {
     
@@ -101,19 +95,18 @@ public:
     ~YieldMap();
 
 
-    void saveMap();
-
+    void pubMarker(Eigen::Vector2d p1, Eigen::Vector2d p2);
 
 private:
-    void syncProcess();
-    void processMeasurements();
 
-    void drawBoxes( cv::Mat & concat, MappingData &result_vec );
+    void drawBoxes( cv::Mat & concat, MappingData &md );
 
     double measureDepth( cv::Mat depth_roi );
+    double measureIOU(MappingData &md1, MappingData &md2);
 
-    void projectDepthImage();
+    void projectDepthImage(MappingData &md);
 
+    void syncProcess();
     void prepareThread();
     void detectThread();
     void trackThread();
@@ -152,6 +145,7 @@ private:
 
     tf::TransformListener listener_;
 
+    ros::Publisher pub_marker_;
     ros::Publisher pub_rgb_img_;
     ros::Publisher pub_depth_img;
     ros::Publisher pub_detected_;
@@ -183,16 +177,16 @@ private:
     std::thread thread_prepare, thread_detect, thread_track, thread_precess;
     utility::SyncedDataExchange<MappingData> prepare2detect, detect2track;
 
-    std::list<DetectedPerId> detected_ids_;
+    std::list<std::pair<ros::Time, MappingData>> md_list_;
 
     // std::vector<Eigen::Vector3d> proj_pts_;
     // std::vector<Eigen::Vector3d> margin_proj_pts_;
     // std::vector<Eigen::Vector3d> margin_detected_pts_;
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr margin_proj_pts_;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr margin_detected_pts_;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr margin_proj_pts_;
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr margin_detected_pts_;
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
 
-    int proj_points_cnt_;
+    // int proj_points_cnt_;
 };
 

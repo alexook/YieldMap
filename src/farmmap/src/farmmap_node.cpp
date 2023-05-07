@@ -45,6 +45,7 @@ void DetectedManager::pubFarmMap( const std_msgs::Header &header)
         pcl_input->push_back( pcl::PointXYZ(proj_points_[i].x(), 
                                             proj_points_[i].y(), 
                                             proj_points_[i].z() ));
+                                            
     }
 
     sor.setInputCloud(pcl_input);

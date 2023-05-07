@@ -19,7 +19,7 @@ void pubTF(const std_msgs::Header &header)
 
     // body frame
     Eigen::Vector3d Ps;
-    Ps.x() = 0.5;
+    Ps.x() = 1.0;
     Ps.y() = 2.0;
     Ps.z() = 0.5;
     

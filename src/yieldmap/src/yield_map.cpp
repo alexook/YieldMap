@@ -6,6 +6,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     pub_margin_map_ = node_.advertise<sensor_msgs::PointCloud>("/yieldmap/margin_map", 1);
     pub_proj_depth_ = node_.advertise<sensor_msgs::PointCloud2>("/yieldmap/proj", 1);
     pub_margin_depth_ = node_.advertise<sensor_msgs::PointCloud2>("/yieldmap/proj_margin", 1);
+    pub_marker_ = node_.advertise<visualization_msgs::Marker>("/yieldmap/marker", 1);
 
     sub_image_.reset(new message_filters::Subscriber<sensor_msgs::CompressedImage>(node_, "/camera/color/image_raw/compressed", 10));
     sub_depth_.reset(new message_filters::Subscriber<sensor_msgs::Image>(node_, "/camera/aligned_depth_to_color/image_raw", 10));
@@ -19,12 +20,11 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     node_.param<string>("weights_file", weights_file, "model/yolov7-tiny_final.weights");
     node_.param<double>("thresh", thresh, 0.5);
 
-    detector_ = std::unique_ptr<Detector>(new Detector("cfg/yolov7-tiny.cfg", "model/yolov7-tiny_final.weights"));
+    detector_ = std::unique_ptr<Detector>(new Detector(cfg_file, weights_file));
 
-    margin_proj_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
-    margin_detected_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
-    proj_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
-
+    // margin_proj_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    // margin_detected_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    // proj_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
 
     image_buffer_.set_capacity(3);
     depth_buffer_.set_capacity(3);
@@ -70,16 +70,31 @@ void YieldMap::prepareThread()
     {
         
         ROS_INFO("prepareThread running...");
-
         try
         {
+            tf::Point p1, p2;
             tf::StampedTransform body2world;
             tf::StampedTransform camera2body;
+
             listener_.lookupTransform("world", "body", ros::Time(0), body2world);
             listener_.lookupTransform("body", "camera", ros::Time(0), camera2body);
+
+            p1 =  body2world * tf::Point(2, 1, 0);
+            p2 = body2world * tf::Point(0, -1, 0);
+
+            mapping_data.rp1 = Eigen::Vector2d(p1.x(), p1.y());
+            mapping_data.rp2 = Eigen::Vector2d(p2.x(), p2.y());
+
             mapping_data.body2world_ = body2world;
             mapping_data.camera2body_ = camera2body;
             mapping_data.has_odom_ = true;
+
+            // cout << "mapping data rp1: " << endl
+            // << mapping_data.rp1 << endl
+            // << "rp2: " << endl
+            // << mapping_data.rp2 << endl;
+            pubMarker(mapping_data.rp1, mapping_data.rp2);
+
         }
         catch (const std::exception &e)
         {
@@ -104,6 +119,7 @@ void YieldMap::prepareThread()
             mapping_data.image_ptr_ = image_ptr;
             mapping_data.frame_cnt_ = frame_cnt++;
             mapping_data.has_depth_ = true;
+
 
             std::this_thread::sleep_for(std::chrono::milliseconds(100));    
 
@@ -158,7 +174,7 @@ void YieldMap::trackThread()
 
         if (result_boxes.empty())
         {
-            cout << "result_boxes is empty" << "size: " << result_boxes.size() << endl;
+            cout << "result_boxes is empty. " << " size: " << result_boxes.size() << endl;
             continue;
         }
 
@@ -221,6 +237,7 @@ void YieldMap::trackThread()
 
         // cout mapping data buf size
         cout << "mapping_data_buf_ size: " << mapping_data_buf_.size() << endl;
+
         cv::Mat concat;
         drawBoxes(concat, mapping_data);
 
@@ -303,8 +320,7 @@ void YieldMap::drawBoxes(cv::Mat & concat, MappingData &md)
 
 }
 
-
-void YieldMap::projectDepthImage()
+void YieldMap::projectDepthImage(MappingData &md)
 {
     cv::Mat depth_raw = mapping_data_buf_.front().second.depth_raw_.clone();
 
@@ -312,8 +328,11 @@ void YieldMap::projectDepthImage()
     tf::StampedTransform camera2body = mapping_data_buf_.front().second.camera2body_;
 
     // std::vector<Eigen::Vector3d> proj_pts_(rows_ * cols_ / skip_pixel_ / skip_pixel_);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_in(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_out(new pcl::PointCloud<pcl::PointXYZ>);
 
-    proj_points_cnt_ = 0;
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+    int proj_points_cnt_ = 0;
 
     for (int v = depth_margin_y_; v < rows_ - depth_margin_y_; v += skip_pixel_)
     {
@@ -325,10 +344,6 @@ void YieldMap::projectDepthImage()
 
             if (distance < 0.8 || distance > 2.0)
                 continue;
-            Eigen::Matrix3d K;
-            K <<    fx_,    0,      cx_,
-                    0,      fy_,    cy_,
-                    0,      0,      1;
 
             Eigen::Vector3d pixel_uv(u, v, 1);
             Eigen::Vector3d proj_pt = distance * K.inverse() * pixel_uv;
@@ -337,10 +352,17 @@ void YieldMap::projectDepthImage()
             tf::Point worldcoord = body2world * bodycoord;
 
             proj_points_cnt_++;
-            proj_pts_->push_back(pcl::PointXYZ(worldcoord.x(), worldcoord.y(), worldcoord.z()));
+            proj_pts_in->push_back(pcl::PointXYZ(worldcoord.x(), worldcoord.y(), worldcoord.z()));
         }
 
     }
+
+    sor.setInputCloud(proj_pts_in);
+    sor.setMeanK(50);
+    sor.setStddevMulThresh(1.0);
+    sor.filter(*proj_pts_out);
+    md.proj_pts_ = proj_pts_out;
+
     ROS_WARN("proj_points_cnt = %d", proj_points_cnt_);
     
 }
@@ -400,4 +422,68 @@ double YieldMap::measureDepth( cv::Mat depth_roi)
     return -1;
 }
 
+double YieldMap::measureIOU(MappingData &md1, MappingData &md2)
+{
+    // 计算两个矩形框的相交区域的左上角坐标和右下角坐标
+    Eigen::Vector2d p1 = md1.rp1;
+    Eigen::Vector2d p2 = md1.rp2;
+    Eigen::Vector2d p3 = md2.rp1;
+    Eigen::Vector2d p4 = md2.rp2;
+    
+    double x1 = std::max(p1[0], p3[0]);
+    double y1 = std::max(p1[1], p3[1]);
+    double x2 = std::min(p2[0], p4[0]);
+    double y2 = std::min(p2[1], p4[1]);
 
+    // 计算相交区域的面积
+    double inter_area = std::max(0.0, x2 - x1) * std::max(0.0, y2 - y1);
+
+    // 计算两个矩形框的面积
+    double box1_area = (p2[0] - p1[0]) * (p2[1] - p1[1]);
+    double box2_area = (p4[0] - p3[0]) * (p4[1] - p3[1]);
+
+    // 计算IoU值
+    double iou = inter_area / (box1_area + box2_area - inter_area);
+
+    return iou;
+}
+
+void YieldMap::pubMarker(Eigen::Vector2d m1, Eigen::Vector2d m2)
+{
+
+    visualization_msgs::Marker marker;
+    marker.type = visualization_msgs::Marker::LINE_STRIP;
+    marker.action = visualization_msgs::Marker::ADD;
+
+    // 设置marker的frame_id和时间戳
+    marker.header.frame_id = "world";
+    marker.header.stamp = ros::Time::now();
+
+    // 设置marker的尺寸
+    marker.scale.x = 0.05;
+    marker.scale.y = 0.05;
+    marker.scale.z = 0.05;
+
+    // 设置marker的颜色为蓝色
+    marker.color.r = 0.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+    marker.color.a = 1.0;
+
+    // 设置marker的位置和方向
+    geometry_msgs::Point p1, p2, p3, p4;
+
+    p1.x = m1.x(); p1.y = m1.y(); p1.z = 0.0;
+    p2.x = m1.x(); p2.y = m2.y(); p2.z = 0.0;
+    p3.x = m2.x(); p3.y = m2.y(); p3.z = 0.0;
+    p4.x = m2.x(); p4.y = m1.y(); p4.z = 0.0;
+
+    marker.points.push_back(p1);
+    marker.points.push_back(p2);
+    marker.points.push_back(p3);
+    marker.points.push_back(p4);
+    marker.points.push_back(p1);
+
+    // 发布marker
+    pub_marker_.publish(marker);
+}

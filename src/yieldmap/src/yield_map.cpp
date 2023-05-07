@@ -79,8 +79,8 @@ void YieldMap::prepareThread()
             listener_.lookupTransform("world", "body", ros::Time(0), body2world);
             listener_.lookupTransform("body", "camera", ros::Time(0), camera2body);
 
-            p1 =  body2world * tf::Point(2, 1, 0);
-            p2 = body2world * tf::Point(0, -1, 0);
+            p1 = body2world * tf::Point(2, 0.8, 0);
+            p2 = body2world * tf::Point(0, -0.8, 0);
 
             mapping_data.rp1 = Eigen::Vector2d(p1.x(), p1.y());
             mapping_data.rp2 = Eigen::Vector2d(p2.x(), p2.y());

@@ -70,7 +70,8 @@ struct MappingData
     std::vector<pair<double, bbox_t>> depth_boxes_;
 
     // raycasting
-    Eigen::Vector2d rp1, rp2;
+    Eigen::Vector2d rp1;
+    Eigen::Vector2d rp2;
 
     // project depth image
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
@@ -146,13 +147,13 @@ private:
     tf::TransformListener listener_;
 
     ros::Publisher pub_marker_;
-    ros::Publisher pub_rgb_img_;
-    ros::Publisher pub_depth_img;
+    ros::Publisher pub_hconcat_;
+
     ros::Publisher pub_detected_;
-    ros::Publisher pub_curr_map_;
-    ros::Publisher pub_margin_map_;
+
     ros::Publisher pub_proj_depth_;
     ros::Publisher pub_margin_depth_;
+
     ros::Subscriber sub_save_switch_;
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> SyncPolicyImageDepth;
@@ -167,6 +168,7 @@ private:
     boost::circular_buffer<std::pair<ros::Time, cv::Mat>> depth_buffer_;
 
     boost::circular_buffer<std::pair<ros::Time, MappingData>> mapping_data_buf_;
+    std::list<std::pair<ros::Time, MappingData>> md_list_;
 
 
     std::atomic<int> fps_counter;
@@ -177,7 +179,6 @@ private:
     std::thread thread_prepare, thread_detect, thread_track, thread_precess;
     utility::SyncedDataExchange<MappingData> prepare2detect, detect2track;
 
-    std::list<std::pair<ros::Time, MappingData>> md_list_;
 
     // std::vector<Eigen::Vector3d> proj_pts_;
     // std::vector<Eigen::Vector3d> margin_proj_pts_;

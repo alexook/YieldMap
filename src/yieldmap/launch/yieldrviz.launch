@@ -8,6 +8,6 @@
         <param name="image_transport" value="compressed"/>
 
     <!-- Start RViz -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find darknet_ros)/rviz/dark.rviz"/>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find yieldmap)/rviz/yield.rviz"/>
 
 </launch>

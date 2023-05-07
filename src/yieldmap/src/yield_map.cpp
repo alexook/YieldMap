@@ -2,10 +2,9 @@
 
 YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
 {
-    pub_curr_map_ = node_.advertise<sensor_msgs::PointCloud>("/yieldmap/current_map", 1);
-    pub_margin_map_ = node_.advertise<sensor_msgs::PointCloud>("/yieldmap/margin_map", 1);
+    pub_detected_ = node_.advertise<sensor_msgs::PointCloud>("/yieldmap/current_map", 1);
     pub_proj_depth_ = node_.advertise<sensor_msgs::PointCloud2>("/yieldmap/proj", 1);
-    pub_margin_depth_ = node_.advertise<sensor_msgs::PointCloud2>("/yieldmap/proj_margin", 1);
+    pub_hconcat_ = node_.advertise<sensor_msgs::Image>("/yieldmap/hconcat", 1);
     pub_marker_ = node_.advertise<visualization_msgs::Marker>("/yieldmap/marker", 1);
 
     sub_image_.reset(new message_filters::Subscriber<sensor_msgs::CompressedImage>(node_, "/camera/color/image_raw/compressed", 10));
@@ -173,19 +172,16 @@ void YieldMap::trackThread()
         result_boxes = detector_->tracking_id(result_boxes, true, 8, 30);
 
         if (result_boxes.empty())
-        {
-            cout << "result_boxes is empty. " << " size: " << result_boxes.size() << endl;
             continue;
-        }
+        
 
         for (auto &box : result_boxes)
         {
             cv::Mat depth_roi;
 
             if (box.x + box.w > 640 || box.y + box.h > 480 || box.w * box.h > 14400)
-            {
                 continue;
-            }
+    
 
             depth_roi = mapping_data.depth_raw_(cv::Rect(box.x, box.y, box.w, box.h));
 
@@ -241,8 +237,10 @@ void YieldMap::trackThread()
         cv::Mat concat;
         drawBoxes(concat, mapping_data);
 
-        cv::imshow("image_draw", concat);
-        cv::waitKey(1);
+        // cv::imshow("image_draw", concat);
+        // cv::waitKey(1);
+
+        pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
 
         
     }
@@ -252,12 +250,43 @@ void YieldMap::trackThread()
 
 void YieldMap::processThread()
 {
+    sensor_msgs::PointCloud2 proj_cloud;
+    
+
     while(!exit_flag)
     {
         ROS_INFO("processThread running...");
+        if (!mapping_data_buf_.empty())
+        {
+            MappingData mapping_data = mapping_data_buf_.front().second;
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            projectDepthImage(mapping_data);
+
+            pcl::toROSMsg(*mapping_data.proj_pts_, proj_cloud);
+            proj_cloud.header.stamp = ros::Time::now();
+            proj_cloud.header.frame_id = "world";
+            pub_proj_depth_.publish(proj_cloud);
+
+            sensor_msgs::PointCloud det_cloud;
+            for (auto &v : mapping_data.depth_boxes_)
+            {
+                geometry_msgs::Point32 p;
+                p.x = v.second.x_3d;
+                p.y = v.second.y_3d;
+                p.z = v.second.z_3d;
+                det_cloud.points.push_back(p);
+            }
+            det_cloud.header.stamp = ros::Time::now();
+            det_cloud.header.frame_id = "world";
+            pub_detected_.publish(det_cloud);
+
+
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
+
+
     cout << "processThread exit" << endl;
 }
 
@@ -322,10 +351,10 @@ void YieldMap::drawBoxes(cv::Mat & concat, MappingData &md)
 
 void YieldMap::projectDepthImage(MappingData &md)
 {
-    cv::Mat depth_raw = mapping_data_buf_.front().second.depth_raw_.clone();
+    cv::Mat depth_raw = md.depth_raw_;
 
-    tf::StampedTransform body2world = mapping_data_buf_.front().second.body2world_;
-    tf::StampedTransform camera2body = mapping_data_buf_.front().second.camera2body_;
+    tf::StampedTransform body2world = md.body2world_;
+    tf::StampedTransform camera2body = md.camera2body_;
 
     // std::vector<Eigen::Vector3d> proj_pts_(rows_ * cols_ / skip_pixel_ / skip_pixel_);
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_in(new pcl::PointCloud<pcl::PointXYZ>);

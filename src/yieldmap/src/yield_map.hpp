@@ -66,7 +66,7 @@ struct MappingData
 
     // detected result
     std::vector<bbox_t> result_boxes_;
-    std::vector<bbox_t> depth_boxes_;
+    std::vector<pair<double, bbox_t>> depth_boxes_;
 
     // flags of map state
     bool has_depth_;
@@ -108,7 +108,10 @@ private:
     void syncProcess();
     void processMeasurements();
 
-    void drawBoxes(cv::Mat mat_img, const std::vector<bbox_t> &result_vec, bool is_depth);
+    void drawBoxes( cv::Mat & concat, MappingData &result_vec );
+
+    double measureDepth( cv::Mat depth_roi );
+
     void projectDepthImage();
 
     void prepareThread();
@@ -124,7 +127,6 @@ private:
     double thresh;
 
     const int skip_pixel_ = 5;
-    const int depth_scaling_factor_ = 1000;
     const int depth_margin_x_ = 64;
     const int depth_margin_y_ = 48;
 
@@ -132,6 +134,11 @@ private:
     const double fy_ = 598.756;
     const double cx_ = 326.344;
     const double cy_ = 250.244;
+    const double depth_scaling_factor_ = 1000;
+
+    const Eigen::Matrix3d K = (Eigen::Matrix3d() << fx_, 0, cx_,
+                                                    0,  fy_,cy_,
+                                                    0,  0,  1).finished();
 
     const int width_ = 640;
     const int height_ = 480;
@@ -166,7 +173,7 @@ private:
     boost::circular_buffer<std::pair<ros::Time, cv::Mat>> depth_buffer_;
 
     boost::circular_buffer<std::pair<ros::Time, MappingData>> mapping_data_buf_;
-    std::mutex mbuf_;
+
 
     std::atomic<int> fps_counter;
     std::atomic<int> current_fps;

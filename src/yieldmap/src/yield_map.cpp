@@ -131,10 +131,8 @@ void YieldMap::detectThread()
         std::vector<bbox_t> result_boxes;
 
         if (image_ptr)
-        {
             result_boxes = detector_->detect_resized(*image_ptr, width_, height_, 0.5, true);
-            cout << result_boxes.size() << endl;
-        }
+        
 
         mapping_data.result_boxes_ = result_boxes;
 
@@ -153,13 +151,81 @@ void YieldMap::trackThread()
         ROS_INFO("trackThread running...");
         detect2track.receive(mapping_data);
 
-        std::vector<bbox_t> result_boxes = mapping_data.result_boxes_;
+        std::vector<bbox_t> result_boxes; 
+        std::vector<pair<double, bbox_t>> depth_boxes;
+        result_boxes = mapping_data.result_boxes_;
         result_boxes = detector_->tracking_id(result_boxes, true, 8, 30);
 
-        drawBoxes(mapping_data.image_draw_, result_boxes, 0);
+        if (result_boxes.empty())
+        {
+            cout << "result_boxes is empty" << "size: " << result_boxes.size() << endl;
+            continue;
+        }
 
-        // cv::imshow("image_draw", mapping_data.image_draw_);
-        // cv::waitKey(1);
+        for (auto &box : result_boxes)
+        {
+            cv::Mat depth_roi;
+
+            if (box.x + box.w > 640 || box.y + box.h > 480 || box.w * box.h > 14400)
+            {
+                continue;
+            }
+
+            depth_roi = mapping_data.depth_raw_(cv::Rect(box.x, box.y, box.w, box.h));
+
+            double distance = measureDepth(depth_roi);
+            box.z_3d = distance;
+
+            if ((box.x + box.w / 2) < 80 || (box.x + box.w / 2) > 560 || 
+                (box.y + box.h / 2) < 60 || (box.y + box.h / 2) > 420 )
+            {
+                //cout << "out of range" << endl;
+                continue;
+            }
+
+            if (distance > 0.6 && distance < 2)
+            {
+ 
+                Eigen::Vector3d pixel_uv(box.x + box.w / 2,
+                                         box.y + box.h / 2,
+                                         1);
+
+                Eigen::Vector3d proj_pt = distance * K.inverse() * pixel_uv;
+                
+                bbox_t dep_box = box;
+                if (mapping_data.has_odom_)
+                {
+                    tf::Point bodycoord = mapping_data.camera2body_ * tf::Point(proj_pt.x(), proj_pt.y(), proj_pt.z());
+                    tf::Point worldcoord = mapping_data.body2world_ * bodycoord;
+                    dep_box.x_3d = worldcoord.getX();
+                    dep_box.y_3d = worldcoord.getY();
+                    dep_box.z_3d = worldcoord.getZ();
+                    depth_boxes.push_back(make_pair(distance, dep_box));
+                }
+                else
+                {
+                    box.x_3d = proj_pt.x();
+                    box.y_3d = proj_pt.y();
+                    box.z_3d = proj_pt.z();
+                    depth_boxes.push_back(make_pair(distance, dep_box));
+
+                }
+            }
+
+        }
+
+        mapping_data.result_boxes_ = result_boxes;
+        mapping_data.depth_boxes_ = depth_boxes;
+
+        mapping_data_buf_.push_back(make_pair(ros::Time::now(), mapping_data));
+
+        // cout mapping data buf size
+        cout << "mapping_data_buf_ size: " << mapping_data_buf_.size() << endl;
+        cv::Mat concat;
+        drawBoxes(concat, mapping_data);
+
+        cv::imshow("image_draw", concat);
+        cv::waitKey(1);
 
         
     }
@@ -194,51 +260,49 @@ void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &im
 
 }
 
-void YieldMap::drawBoxes(cv::Mat mat_img, const std::vector<bbox_t> &result_vec, bool is_depth)
+void YieldMap::drawBoxes(cv::Mat & concat, MappingData &md)
 {
-    for (auto &v : result_vec)
-    {
-        std::string obj_str = "";
-        std::string depth_str;
 
-        if (v.track_id > 0)
-            obj_str += std::to_string(v.track_id);
+    cv::Mat img = md.image_draw_;
+    cv::Mat dep = md.depth_draw_;
+    std::string obj_str = "";
+    std::string depth_str = "";
+
+    for (auto &v : md.result_boxes_)
+    {
+
+        obj_str = std::to_string(v.track_id);
         if (v.z_3d > 0)
             depth_str = cv::format("%.3f", v.z_3d) + "m";
 
-        
         // Draw boxes
-        
-        if (is_depth)
-            cv::rectangle(mat_img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(255, 0, 255), 2);
-        else
-            cv::rectangle(mat_img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(255, 0, 255), 2);
-
+        cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(255, 0, 255), 2);
 
         // Show label
-        if (is_depth)
-        {
-            putText(mat_img, obj_str, cv::Point2f(v.x, v.y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 255, 255), 1);
-        }
-        else
-        {
-            putText(mat_img, depth_str, cv::Point2f(v.x, v.y - 14), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 0, 255), 1);
-            putText(mat_img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);
-        }
-    }
-   
-    // Show edge
-    if (is_depth)
-        cv::rectangle(mat_img, cv::Rect(80, 60, 480, 360), {0, 255, 255}, 3.5, 8);
-    
-    // Show FPS
-    if (!is_depth && current_fps >= 0)
-    {
-        std::string fps_str = "FPS: " + std::to_string(current_fps);
-        putText(mat_img, fps_str, cv::Point2f(540, 25), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.2, cv::Scalar(0, 0, 255), 2);
+        cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 14), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 0, 255), 1);
+        cv::putText(img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);
     }
 
+    for (auto &p : md.depth_boxes_)
+    {   
+        obj_str = std::to_string(p.second.track_id);
+
+        cv::rectangle(dep, cv::Rect(p.second.x, p.second.y, p.second.w, p.second.h), cv::Scalar(255, 0, 255), 2);
+        cv::putText(dep, obj_str, cv::Point2f(p.second.x, p.second.y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 255, 255), 1);
+    }
+
+    cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 255, 255}, 3.5, 8);
+
+    if (current_fps > 0)
+    {
+        std::string fps_str = "FPS: " + std::to_string(current_fps);
+        cv::putText(img, fps_str, cv::Point2f(540, 25), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.2, cv::Scalar(0, 0, 255), 2);
+    }
+
+    cv::hconcat(img, dep, concat);
+
 }
+
 
 void YieldMap::projectDepthImage()
 {
@@ -276,9 +340,64 @@ void YieldMap::projectDepthImage()
             proj_pts_->push_back(pcl::PointXYZ(worldcoord.x(), worldcoord.y(), worldcoord.z()));
         }
 
-
-
     }
     ROS_WARN("proj_points_cnt = %d", proj_points_cnt_);
     
 }
+
+double YieldMap::measureDepth( cv::Mat depth_roi)
+{
+    cv::Mat roi = depth_roi.clone();
+
+    cv::Size roi_size = depth_roi.size();
+    // cout << "roi size:" << roi_size << endl;
+
+    std::vector<double> depth_pts;
+    int depth_pts_cnt = 0;
+
+   for (int v = 0; v < roi_size.height; v += 2)
+    {
+        uint16_t *row_ptr = roi.ptr<uint16_t>(v);
+
+        for (int u = 0; u < roi_size.width; u += 2)
+        {
+            double distance = (double)row_ptr[u] / depth_scaling_factor_;
+
+            if (distance < 0.8 || distance > 2.0)
+                continue;
+
+            depth_pts.push_back(distance);
+            depth_pts_cnt++;
+        }
+
+    }
+
+    /*
+        debug: show depth points
+    */
+    // cout << "depth_pts_cnt: " << depth_pts_cnt << endl;
+
+    // for (int i = 0; i < depth_pts_cnt; i++)
+    //     cout << depth_pts[i] << " ";
+
+    if (depth_pts_cnt > 50)
+    {
+        static double pts[24];
+        int pts_cnt = 0;
+        double sum = 0;
+
+        std::sort(depth_pts.begin(), depth_pts.end());
+
+        for (int i = depth_pts_cnt / 2 - 12; i < depth_pts_cnt / 2 + 12; i++)
+            pts[pts_cnt++] = depth_pts[i];
+
+        for (int i = 0; i < pts_cnt; i++)
+            sum += pts[i];
+
+        return sum / pts_cnt;
+    }
+
+    return -1;
+}
+
+

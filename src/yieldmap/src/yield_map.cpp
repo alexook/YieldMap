@@ -269,7 +269,7 @@ void YieldMap::trackThread()
 
         mapping_data_buf_.push_back(mapping_data);
 
-        if (mapping_data.frame_cnt_ % 8 == 0) history_data_.push_back(mapping_data);
+        // if (mapping_data.frame_cnt_ % 8 == 0) history_data_.push_back(mapping_data);
 
         // cout mapping data buf size
         // cout << "mapping_data_buf_ size: " << mapping_data_buf_.size() << endl;

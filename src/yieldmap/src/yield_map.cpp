@@ -25,9 +25,9 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     // margin_detected_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
     // proj_pts_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
 
-    image_buffer_.set_capacity(3);
-    depth_buffer_.set_capacity(3);
-    mapping_data_buf_.set_capacity(5);
+    image_buffer_.set_capacity(5);
+    depth_buffer_.set_capacity(5);
+    mapping_data_buf_.set_capacity(10);
 
     image_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_8UC3)));
     depth_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_16UC1)));
@@ -71,18 +71,34 @@ void YieldMap::prepareThread()
         ROS_INFO("prepareThread running...");
         try
         {
-            tf::Point p1, p2;
+            tf::Point p1, p2, p3, p4, x;
             tf::StampedTransform body2world;
             tf::StampedTransform camera2body;
 
             listener_.lookupTransform("world", "body", ros::Time(0), body2world);
             listener_.lookupTransform("body", "camera", ros::Time(0), camera2body);
+            /*
+            
+              (p1)      (p2)
+                * * * * *
+                *       *
+                *  (x)  *
+                *       *
+                * * * * *
+              (p4)      (p3)
+            
+            */
+            p1 = body2world * tf::Point(raycastDepth_, raycastBreadth, 0);
+            p2 = body2world * tf::Point(raycastDepth_, -raycastBreadth, 0);
+            p3 = body2world * tf::Point(raycastDepth_ - 2 * raycastBreadth, -raycastBreadth, 0);
+            p4 = body2world * tf::Point(raycastDepth_ - 2 * raycastBreadth, raycastBreadth, 0);
+            x = body2world * tf::Point(raycastDepth_ - raycastBreadth, 0, 0);
 
-            p1 = body2world * tf::Point(2, 0.8, 0);
-            p2 = body2world * tf::Point(0, -0.8, 0);
-
-            mapping_data.rp1 = Eigen::Vector2d(p1.x(), p1.y());
-            mapping_data.rp2 = Eigen::Vector2d(p2.x(), p2.y());
+            mapping_data.p1_ = Eigen::Vector2d(p1.x(), p1.y());
+            mapping_data.p2_ = Eigen::Vector2d(p2.x(), p2.y());
+            mapping_data.p3_ = Eigen::Vector2d(p3.x(), p3.y());
+            mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
+            mapping_data.x_ = Eigen::Vector2d(x.x(), x.y());
 
             mapping_data.body2world_ = body2world;
             mapping_data.camera2body_ = camera2body;
@@ -92,7 +108,6 @@ void YieldMap::prepareThread()
             // << mapping_data.rp1 << endl
             // << "rp2: " << endl
             // << mapping_data.rp2 << endl;
-            pubMarker(mapping_data.rp1, mapping_data.rp2);
 
         }
         catch (const std::exception &e)
@@ -105,8 +120,8 @@ void YieldMap::prepareThread()
         {
             std::shared_ptr<image_t> image_ptr;
             cv::Mat depth_draw;
-            cv::Mat image_raw = image_buffer_.front().second;
-            cv::Mat depth_raw = depth_buffer_.front().second;
+            cv::Mat image_raw = image_buffer_.back().second;
+            cv::Mat depth_raw = depth_buffer_.back().second;
             depth_raw.convertTo(depth_draw, CV_8U, 255.0/4095.0);
             cv::applyColorMap(depth_draw, depth_draw, cv::COLORMAP_TURBO);
             image_ptr = detector_->mat_to_image_resize(image_raw);
@@ -118,7 +133,6 @@ void YieldMap::prepareThread()
             mapping_data.image_ptr_ = image_ptr;
             mapping_data.frame_cnt_ = frame_cnt++;
             mapping_data.has_depth_ = true;
-
 
             std::this_thread::sleep_for(std::chrono::milliseconds(100));    
 
@@ -169,7 +183,7 @@ void YieldMap::trackThread()
         std::vector<bbox_t> result_boxes; 
         std::vector<pair<double, bbox_t>> depth_boxes;
         result_boxes = mapping_data.result_boxes_;
-        result_boxes = detector_->tracking_id(result_boxes, true, 8, 30);
+        //result_boxes = detector_->tracking_id(result_boxes, true, 8, 30);
 
         if (result_boxes.empty())
             continue;
@@ -228,21 +242,16 @@ void YieldMap::trackThread()
 
         mapping_data.result_boxes_ = result_boxes;
         mapping_data.depth_boxes_ = depth_boxes;
-
+        mapping_data.is_sight = isInSight(mapping_data);
         mapping_data_buf_.push_back(make_pair(ros::Time::now(), mapping_data));
 
         // cout mapping data buf size
         cout << "mapping_data_buf_ size: " << mapping_data_buf_.size() << endl;
 
-        cv::Mat concat;
-        drawBoxes(concat, mapping_data);
+        pubHConcat(mapping_data);
 
-        // cv::imshow("image_draw", concat);
-        // cv::waitKey(1);
 
-        pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
 
-        
     }
     cout << "trackThread exit" << endl;
     
@@ -252,16 +261,25 @@ void YieldMap::processThread()
 {
     sensor_msgs::PointCloud2 proj_cloud;
     
-
     while(!exit_flag)
     {
         ROS_INFO("processThread running...");
         if (!mapping_data_buf_.empty())
         {
-            MappingData mapping_data = mapping_data_buf_.front().second;
+            MappingData mapping_data = mapping_data_buf_.back().second;
 
+            if (mapping_data_list_.empty())
+            {
+                projectDepthImage(mapping_data);
+                mapping_data_list_.push_back(make_pair(ros::Time::now(), mapping_data));
+            }
+            else
+            {
+                
+            }
+
+        
             projectDepthImage(mapping_data);
-
             pcl::toROSMsg(*mapping_data.proj_pts_, proj_cloud);
             proj_cloud.header.stamp = ros::Time::now();
             proj_cloud.header.frame_id = "world";
@@ -280,7 +298,7 @@ void YieldMap::processThread()
             det_cloud.header.frame_id = "world";
             pub_detected_.publish(det_cloud);
 
-
+            pubMarker(mapping_data);
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -306,46 +324,72 @@ void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &im
 
 }
 
-void YieldMap::drawBoxes(cv::Mat & concat, MappingData &md)
+void YieldMap::pubHConcat(MappingData &md)
 {
 
+    cv::Mat concat;
     cv::Mat img = md.image_draw_;
     cv::Mat dep = md.depth_draw_;
     std::string obj_str = "";
     std::string depth_str = "";
 
+    // Draw color image
     for (auto &v : md.result_boxes_)
     {
+        // int circle_x = v.x + v.w / 2;
+        // int circle_y = v.y + v.h / 2;
+        // int radius =  max((int)v.w, 20) / 2;
 
-        obj_str = std::to_string(v.track_id);
+        //obj_str = std::to_string(v.track_id);
         if (v.z_3d > 0)
             depth_str = cv::format("%.3f", v.z_3d) + "m";
 
         // Draw boxes
-        cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(255, 0, 255), 2);
-
+        cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(180, 255, 0), 2);
+        // cv::circle(img, cv::Point2f(circle_x, circle_y), radius, cv::Scalar(0, 128, 255), 2);
+        
+        
         // Show label
-        cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 14), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 0, 255), 1);
-        cv::putText(img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);
+        cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(255, 0, 255), 1);
+        //cv::putText(img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);
     }
 
+    // Draw depth image
     for (auto &p : md.depth_boxes_)
     {   
-        obj_str = std::to_string(p.second.track_id);
-
+        //obj_str = std::to_string(p.second.track_id);
         cv::rectangle(dep, cv::Rect(p.second.x, p.second.y, p.second.w, p.second.h), cv::Scalar(255, 0, 255), 2);
-        cv::putText(dep, obj_str, cv::Point2f(p.second.x, p.second.y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 255, 255), 1);
+        //cv::putText(dep, obj_str, cv::Point2f(p.second.x, p.second.y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 255, 255), 1);
     }
 
-    cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 255, 255}, 3.5, 8);
-
+    // Draw FPS
     if (current_fps > 0)
     {
         std::string fps_str = "FPS: " + std::to_string(current_fps);
         cv::putText(img, fps_str, cv::Point2f(540, 25), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.2, cv::Scalar(0, 0, 255), 2);
     }
+    
+
+    // Identify if in sight
+    if (md.is_sight)
+        cv::rectangle(dep, cv::Rect(width_ / 2 - 40, 60, 60, height_ - 60 * 2), {0, 255, 0}, 3, 8);
+
+    else
+        cv::rectangle(dep, cv::Rect(width_ / 2 - 40, 60, 60, height_ - 60 * 2), {0, 0, 255}, 3, 8);
+
+
+    if(isInStamp(md))
+    {
+        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 255, 0}, 3, 8);
+    }
+    else
+    {
+        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
+    }
+
 
     cv::hconcat(img, dep, concat);
+    pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
 
 }
 
@@ -451,61 +495,74 @@ double YieldMap::measureDepth( cv::Mat depth_roi)
     return -1;
 }
 
-double YieldMap::measureIOU(MappingData &md1, MappingData &md2)
+double YieldMap::measureIOU( MappingData &md1, MappingData &md2 )
 {
-    // 计算两个矩形框的相交区域的左上角坐标和右下角坐标
-    Eigen::Vector2d p1 = md1.rp1;
-    Eigen::Vector2d p2 = md1.rp2;
-    Eigen::Vector2d p3 = md2.rp1;
-    Eigen::Vector2d p4 = md2.rp2;
-    
-    double x1 = std::max(p1[0], p3[0]);
-    double y1 = std::max(p1[1], p3[1]);
-    double x2 = std::min(p2[0], p4[0]);
-    double y2 = std::min(p2[1], p4[1]);
 
-    // 计算相交区域的面积
-    double inter_area = std::max(0.0, x2 - x1) * std::max(0.0, y2 - y1);
 
-    // 计算两个矩形框的面积
-    double box1_area = (p2[0] - p1[0]) * (p2[1] - p1[1]);
-    double box2_area = (p4[0] - p3[0]) * (p4[1] - p3[1]);
-
-    // 计算IoU值
-    double iou = inter_area / (box1_area + box2_area - inter_area);
-
-    return iou;
 }
 
-void YieldMap::pubMarker(Eigen::Vector2d m1, Eigen::Vector2d m2)
+bool YieldMap::isInSight(MappingData &md)
+{
+    int sum = 0;
+    int cnt = md.depth_boxes_.size();
+
+    for (auto &v : md.depth_boxes_)
+    {
+        sum += v.second.x + v.second.w / 2;
+    }
+
+    return abs(sum / cnt - width_ / 2) < 60;
+}
+
+bool YieldMap::isInStamp(MappingData &md)
+{
+
+
+    return false;
+}
+
+void YieldMap::pubMarker( MappingData &md )
 {
 
     visualization_msgs::Marker marker;
     marker.type = visualization_msgs::Marker::LINE_STRIP;
     marker.action = visualization_msgs::Marker::ADD;
 
-    // 设置marker的frame_id和时间戳
+
     marker.header.frame_id = "world";
     marker.header.stamp = ros::Time::now();
 
-    // 设置marker的尺寸
-    marker.scale.x = 0.05;
-    marker.scale.y = 0.05;
-    marker.scale.z = 0.05;
+    marker.scale.x = 0.03;
+    marker.scale.y = 0.03;
+    marker.scale.z = 0.03;
 
-    // 设置marker的颜色为蓝色
     marker.color.r = 0.0;
     marker.color.g = 1.0;
     marker.color.b = 0.0;
     marker.color.a = 1.0;
 
-    // 设置marker的位置和方向
+    marker.pose.position.x = 0;
+    marker.pose.position.y = 0;
+    marker.pose.position.z = 0;
+
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+
     geometry_msgs::Point p1, p2, p3, p4;
 
-    p1.x = m1.x(); p1.y = m1.y(); p1.z = 0.0;
-    p2.x = m1.x(); p2.y = m2.y(); p2.z = 0.0;
-    p3.x = m2.x(); p3.y = m2.y(); p3.z = 0.0;
-    p4.x = m2.x(); p4.y = m1.y(); p4.z = 0.0;
+    p1.x = md.p1_.x();
+    p1.y = md.p1_.y();
+
+    p2.x = md.p2_.x();
+    p2.y = md.p2_.y();
+
+    p3.x = md.p3_.x();
+    p3.y = md.p3_.y();
+
+    p4.x = md.p4_.x();
+    p4.y = md.p4_.y();
 
     marker.points.push_back(p1);
     marker.points.push_back(p2);

@@ -70,8 +70,8 @@ struct MappingData
     std::vector<pair<double, bbox_t>> depth_boxes_;
 
     // raycasting
-    Eigen::Vector2d rp1;
-    Eigen::Vector2d rp2;
+    Eigen::Vector2d x_;
+    Eigen::Vector2d p1_, p2_, p3_, p4_;
 
     // project depth image
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
@@ -82,6 +82,8 @@ struct MappingData
     bool has_cloud_;
     bool has_detection_;
 
+    bool is_stamp;
+    bool is_sight;
     int frame_cnt_;
 
 
@@ -92,20 +94,17 @@ class YieldMap {
     
 public:
     YieldMap(ros::NodeHandle &nh);
-    //YieldMap(ros::NodeHandle &nh, Detector & dt);
     ~YieldMap();
-
-
-    void pubMarker(Eigen::Vector2d p1, Eigen::Vector2d p2);
 
 private:
 
-    void drawBoxes( cv::Mat & concat, MappingData &md );
-
     double measureDepth( cv::Mat depth_roi );
-    double measureIOU(MappingData &md1, MappingData &md2);
+    double measureIOU( MappingData &md1, MappingData &md2 );
 
-    void projectDepthImage(MappingData &md);
+    bool isInSight( MappingData &md );
+    bool isInStamp( MappingData &md );
+
+    void projectDepthImage( MappingData &md );
 
     void syncProcess();
     void prepareThread();
@@ -113,8 +112,12 @@ private:
     void trackThread();
     void processThread();
 
+    void pubMarker( MappingData &md );
+    void pubYieldMap();
+    void pubHConcat( MappingData &md );
+
     void imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input);
-    
+
     string names_file;
     string cfg_file;
     string weights_file;
@@ -139,6 +142,8 @@ private:
     const int cols_ = 640;
     const int rows_ = 480;
 
+    const double raycastDepth_ = 2.0;
+    const double raycastBreadth = 0.8;
 
     std::unique_ptr<Detector> detector_;
 
@@ -168,7 +173,8 @@ private:
     boost::circular_buffer<std::pair<ros::Time, cv::Mat>> depth_buffer_;
 
     boost::circular_buffer<std::pair<ros::Time, MappingData>> mapping_data_buf_;
-    std::list<std::pair<ros::Time, MappingData>> md_list_;
+
+    std::list<std::pair<ros::Time, MappingData>> mapping_data_list_;
 
 
     std::atomic<int> fps_counter;

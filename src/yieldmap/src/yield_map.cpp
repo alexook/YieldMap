@@ -42,7 +42,6 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     syncProcess();
 }
 
-
 YieldMap::~YieldMap()
 {
     cout << "YieldMap destructor called" << endl;
@@ -282,50 +281,17 @@ void YieldMap::trackThread()
 
 void YieldMap::processThread()
 {
-    sensor_msgs::PointCloud2 proj_cloud;
     
     while(!exit_flag)
     {
         // ROS_INFO("processThread running...");
         if (!mapping_data_buf_.empty())
         {
-            MappingData mapping_data = mapping_data_buf_.back();
-
-            if (mapping_data_list_.empty())
-            {
-                projectDepthImage(mapping_data);
-                mapping_data_list_.push_back( mapping_data);
-            }
-            else
-            {
-                
-            }
-
-            projectDepthImage(mapping_data);
-            pcl::toROSMsg(*mapping_data.proj_pts_, proj_cloud);
-            proj_cloud.header.stamp = ros::Time::now();
-            proj_cloud.header.frame_id = "world";
-            pub_proj_depth_.publish(proj_cloud);
-
-            sensor_msgs::PointCloud det_cloud;
-            for (auto &v : mapping_data.depth_boxes_)
-            {
-                geometry_msgs::Point32 p;
-                p.x = v.second.x_3d;
-                p.y = v.second.y_3d;
-                p.z = v.second.z_3d;
-                det_cloud.points.push_back(p);
-            }
-            det_cloud.header.stamp = ros::Time::now();
-            det_cloud.header.frame_id = "world";
-            pub_detected_.publish(det_cloud);
-
-            pubMarker(mapping_data);
+            pubYieldMap();
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
-
 
     cout << "processThread exit" << endl;
 }
@@ -668,7 +634,38 @@ void YieldMap::pubHConcat(MappingData &md)
 
 void YieldMap::pubYieldMap()
 {
-    
+    sensor_msgs::PointCloud2 proj_cloud;
 
+    MappingData mapping_data = mapping_data_buf_.back();
+
+    if (mapping_data_list_.empty())
+    {
+        projectDepthImage(mapping_data);
+        mapping_data_list_.push_back(mapping_data);
+    }
+    else
+    {
+
+    }
+    projectDepthImage(mapping_data);
+    pcl::toROSMsg(*mapping_data.proj_pts_, proj_cloud);
+    proj_cloud.header.stamp = ros::Time::now();
+    proj_cloud.header.frame_id = "world";
+    pub_proj_depth_.publish(proj_cloud);
+
+    sensor_msgs::PointCloud det_cloud;
+    for (auto &v : mapping_data.depth_boxes_)
+    {
+        geometry_msgs::Point32 p;
+        p.x = v.second.x_3d;
+        p.y = v.second.y_3d;
+        p.z = v.second.z_3d;
+        det_cloud.points.push_back(p);
+    }
+    det_cloud.header.stamp = ros::Time::now();
+    det_cloud.header.frame_id = "world";
+    pub_detected_.publish(det_cloud);
+
+    pubMarker(mapping_data);
 
 }

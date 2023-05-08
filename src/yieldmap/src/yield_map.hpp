@@ -76,7 +76,6 @@ struct MappingData
     // project depth image
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
 
-
     // time stamp
     double init_time_;
     double update_time_;
@@ -89,8 +88,8 @@ struct MappingData
 
     bool is_stamp_;
     bool is_sight_;
+
     int frame_cnt_;
-    
 };
 
 

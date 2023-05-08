@@ -27,7 +27,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
 
     image_buffer_.set_capacity(5);
     depth_buffer_.set_capacity(5);
-    mapping_data_buf_.set_capacity(10);
+    mapping_data_buf_.set_capacity(11);
 
     image_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_8UC3)));
     depth_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_16UC1)));

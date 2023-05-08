@@ -14,7 +14,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     sync_image_depth_->registerCallback(boost::bind(&YieldMap::imageDepthCallback, this, _1, _2));
 
 
-    node_.param<string>("names_file", names_file, "apple.names");
+    //node_.param<string>("names_file", names_file, "apple.names");
     node_.param<string>("cfg_file", cfg_file, "cfg/yolov7-tiny.cfg");
     node_.param<string>("weights_file", weights_file, "model/yolov7-tiny_final.weights");
     node_.param<double>("thresh", thresh, 0.5);
@@ -27,16 +27,17 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
 
     image_buffer_.set_capacity(5);
     depth_buffer_.set_capacity(5);
-    mapping_data_buf_.set_capacity(11);
+    mapping_data_buf_.set_capacity(10);
+    history_data_.set_capacity(3);
 
     image_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_8UC3)));
     depth_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_16UC1)));
 
-
     exit_flag = 0;
+
     fps_cnt_ = 0;
     fps_ = 0;
-    start_time_ = ros::Time::now();
+    start_time_ = ros::Time::now().toSec();
 
     syncProcess();
 }
@@ -68,7 +69,7 @@ void YieldMap::prepareThread()
     while(!exit_flag)
     {
         
-        ROS_INFO("prepareThread running...");
+        // ROS_INFO("prepareThread running...");
         try
         {
             tf::Point p1, p2, p3, p4, x;
@@ -79,13 +80,13 @@ void YieldMap::prepareThread()
             listener_.lookupTransform("body", "camera", ros::Time(0), camera2body);
             /*
 
-              (p1)      (p2)
-                * * * * *
-                *       *
-                *  (x)  *
-                *       *
-                * * * * *
-              (p4)      (p3)
+              (p1)       (p2)
+                * * * * * *
+                *         *
+                *   (x)   *
+                *         *
+                * * * * * *
+              (p4)       (p3)
             
             */
             p1 = body2world * tf::Point(RAYCAST_DEPTH, RAYCAST_BREADTH, 0);
@@ -122,6 +123,7 @@ void YieldMap::prepareThread()
             cv::Mat depth_draw;
             cv::Mat image_raw = image_buffer_.back().second;
             cv::Mat depth_raw = depth_buffer_.back().second;
+            double init_time = image_buffer_.back().first.toSec();
             depth_raw.convertTo(depth_draw, CV_8U, 255.0/4095.0);
             cv::applyColorMap(depth_draw, depth_draw, cv::COLORMAP_TURBO);
             image_ptr = detector_->mat_to_image_resize(image_raw);
@@ -133,7 +135,7 @@ void YieldMap::prepareThread()
             mapping_data.image_ptr_ = image_ptr;
             mapping_data.frame_cnt_ = frame_cnt++;
             mapping_data.has_depth_ = true;
-
+            mapping_data.init_time_ = init_time;
             fps_cnt_++;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));    
 
@@ -153,7 +155,7 @@ void YieldMap::detectThread()
 
     while(!exit_flag)
     {
-        ROS_INFO("detectThread running...");
+        // ROS_INFO("detectThread running...");
         prepare2detect.receive(mapping_data);
 
         image_ptr = mapping_data.image_ptr_;
@@ -177,17 +179,21 @@ void YieldMap::trackThread()
 
     while(!exit_flag)
     {
-        ROS_INFO("trackThread running...");
+        // ROS_INFO("trackThread running...");
 
-        end_time_ = ros::Time::now();
-        if (end_time_.toSec() - start_time_.toSec() > 1)
+        /*
+            Calculate fps
+        */
+        detect2track.receive(mapping_data);
+        end_time_ = ros::Time::now().toSec();
+        // cout << "start time: " << start_time_ << endl;
+        // cout << "end time: " << end_time_ << endl;
+        if ( end_time_ - start_time_ > 1.0 )
         {
-            fps_ = fps_cnt_ / (end_time_.toSec() - start_time_.toSec());
+            fps_ = fps_cnt_ / (end_time_ - start_time_);
             fps_cnt_ = 0;
             start_time_ = end_time_;
         }
-
-        detect2track.receive(mapping_data);
 
         std::vector<bbox_t> result_boxes; 
         std::vector<pair<double, bbox_t>> depth_boxes;
@@ -254,12 +260,19 @@ void YieldMap::trackThread()
 
         mapping_data.result_boxes_ = result_boxes;
         mapping_data.depth_boxes_ = depth_boxes;
-        mapping_data.is_sight = isInSight(mapping_data);
+        mapping_data.is_sight_ = isInSight(mapping_data);
+        mapping_data.is_stamp_ = isInStamp(mapping_data);
+        mapping_data.update_time_ = ros::Time::now().toSec();
+        mapping_data.has_new_detection_ = mapping_data.update_time_ - mapping_data.init_time_ < 1.0 ? true : false;
+
+        // cout << "update time - init time: " << mapping_data.update_time_ - mapping_data.init_time_ << endl;
+
         mapping_data_buf_.push_back(mapping_data);
 
-        // cout mapping data buf size
-        cout << "mapping_data_buf_ size: " << mapping_data_buf_.size() << endl;
+        if (mapping_data.frame_cnt_ % 8 == 0) history_data_.push_back(mapping_data);
 
+        // cout mapping data buf size
+        // cout << "mapping_data_buf_ size: " << mapping_data_buf_.size() << endl;
         pubHConcat(mapping_data);
 
     }
@@ -273,7 +286,7 @@ void YieldMap::processThread()
     
     while(!exit_flag)
     {
-        ROS_INFO("processThread running...");
+        // ROS_INFO("processThread running...");
         if (!mapping_data_buf_.empty())
         {
             MappingData mapping_data = mapping_data_buf_.back();
@@ -319,10 +332,11 @@ void YieldMap::processThread()
 
 void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input)
 {
+    // ros::Time stamp = image_ptr->header.stamp;
+    ros::Time stamp = ros::Time::now();
     
     cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::BGR8);
     cv::Mat image = image_ptr->image;
-    ros::Time stamp = image_ptr->header.stamp;
 
     cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_input, sensor_msgs::image_encodings::TYPE_16UC1);
     cv::Mat depth = depth_ptr->image;
@@ -332,8 +346,6 @@ void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &im
     depth_buffer_.push_back(std::make_pair(stamp, depth));
 
 }
-
-
 
 void YieldMap::projectDepthImage(MappingData &md)
 {
@@ -378,7 +390,7 @@ void YieldMap::projectDepthImage(MappingData &md)
     sor.filter(*proj_pts_out);
     md.proj_pts_ = proj_pts_out;
 
-    ROS_WARN("proj_points_cnt = %d", proj_points_cnt_);
+    // ROS_WARN("proj_points_cnt = %d", proj_points_cnt_);
     
 }
 
@@ -448,7 +460,7 @@ double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 
     if (distance < 0.01 )
     {
-        return M_PI * radius * radius;
+        return 1.0;
     }
     double inter_angle = 2 * acos((distance * distance) / (2 * radius * distance));
 
@@ -474,9 +486,10 @@ bool YieldMap::isInSight(MappingData &md)
 
 bool YieldMap::isInStamp(MappingData &md)
 {
+    // MappingData his_data = history_data_[5];
 
+    return measureInter(mapping_data_buf_[0], md) > 0.95;
 
-    return false;
 }
 
 void YieldMap::pubMarker( MappingData &md )
@@ -494,9 +507,19 @@ void YieldMap::pubMarker( MappingData &md )
     marker.scale.y = 0.03;
     marker.scale.z = 0.03;
 
-    marker.color.r = 0.0;
-    marker.color.g = 1.0;
-    marker.color.b = 0.0;
+    if (md.is_stamp_)
+    {
+        marker.color.r = 0.0;
+        marker.color.g = 1.0;
+        marker.color.b = 0.0;
+    }
+    else
+    {
+        marker.color.r = 1.0;
+        marker.color.g = 0.0;
+        marker.color.b = 0.0;
+    }
+
     marker.color.a = 1.0;
 
     marker.pose.position.x = 0;
@@ -559,7 +582,6 @@ void YieldMap::pubCubeMarker( MappingData &md )
     pub_marker_.publish(marker);
 }
 
-
 void YieldMap::pubHConcat(MappingData &md)
 {
 
@@ -571,10 +593,9 @@ void YieldMap::pubHConcat(MappingData &md)
 
     if (md.result_boxes_.empty())
     {
-        cv::putText(img, "No detection", cv::Point2f(380, 60), cv::FONT_HERSHEY_SIMPLEX, 1.2, cv::Scalar(0, 0, 255), 2);
-        
+        cv::putText(img, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
 
-        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
+        // cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
         cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
         
         cv::hconcat(img, dep, concat);
@@ -612,22 +633,26 @@ void YieldMap::pubHConcat(MappingData &md)
     }
 
     // Draw FPS
-    if (fps_ > 0)
+    if ( md.has_new_detection_ && fps_ )
     {
         std::string fps_str = "FPS: " + std::to_string(fps_);
-        cv::putText(img, fps_str, cv::Point2f(450, 60), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.2, cv::Scalar(0, 0, 255), 2);
+        cv::putText(img, fps_str, cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 10), 2);
+    }
+    else
+    {
+        cv::putText(img, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
     }
     
 
     // Identify if in sight
-    if (md.is_sight)
+    if (md.is_sight_)
         cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
 
     else
         cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
 
 
-    if(isInStamp(md))
+    if(md.is_stamp_)
     {
         cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 255, 0}, 3, 8);
     }
@@ -641,4 +666,9 @@ void YieldMap::pubHConcat(MappingData &md)
 
 }
 
+void YieldMap::pubYieldMap()
+{
+    
 
+
+}

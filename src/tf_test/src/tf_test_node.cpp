@@ -8,7 +8,7 @@
 
 ros::Publisher pub_odom;
 
-void pubTF(const std_msgs::Header &header)
+void pubTF(const std_msgs::Header &header, double t)
 {
 
     static tf::TransformBroadcaster br;
@@ -20,7 +20,7 @@ void pubTF(const std_msgs::Header &header)
     // body frame
     Eigen::Vector3d Ps;
     Ps.x() = 1.0;
-    Ps.y() = 2.0;
+    Ps.y() = t;
     Ps.z() = 0.5;
     
     Eigen::Quaterniond Qs;
@@ -88,17 +88,47 @@ int main(int argc, char *argv[])
     pub_odom = nh.advertise<nav_msgs::Odometry>("/tf_test/odom", 10);
 
 
-    ros::Rate loop_rate(10);
-
     while (ros::ok())
     {
         // rosinfo output : odom done
         ROS_INFO("odom done");
 
-        std_msgs::Header header;
-        header.stamp = ros::Time::now();
-        pubTF(header);
-        loop_rate.sleep();
+        for (int i = 0; i < 400; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 0.01 * i);
+            // delay 0.1s
+            ros::Duration(0.02).sleep();
+        }
+
+        for (int i = 0; i < 100; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 4);
+            ros::Duration(0.2).sleep();
+        }
+
+        for (int i = 400; i > 0; i--)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 0.01 * i);
+            ros::Duration(0.02).sleep();
+        }
+
+        for (int i = 0; i < 100; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 0);
+            ros::Duration(0.2).sleep();
+        }
+        // std_msgs::Header header;
+        // header.stamp = ros::Time::now();
+        // pubTF(header);
+        // loop_rate.sleep();
     }
 
     return 0;

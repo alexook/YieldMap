@@ -78,19 +78,19 @@ struct MappingData
 
 
     // time stamp
-    double time_;
+    double init_time_;
+    double update_time_;
 
     // flags of map state
     bool has_depth_;
     bool has_odom_;
     bool has_cloud_;
-    bool has_detection_;
+    bool has_new_detection_;
 
-    bool is_stamp;
-    bool is_sight;
+    bool is_stamp_;
+    bool is_sight_;
     int frame_cnt_;
     
-
 };
 
 
@@ -176,13 +176,14 @@ private:
     boost::circular_buffer<std::pair<ros::Time, cv::Mat>> depth_buffer_;
 
     boost::circular_buffer< MappingData > mapping_data_buf_;
+    boost::circular_buffer< MappingData > history_data_;
 
     std::list< MappingData > mapping_data_list_;
 
 
     std::atomic<int> fps_cnt_;
     std::atomic<int> fps_;
-    ros::Time start_time_, end_time_;
+    double start_time_, end_time_;
 
     std::atomic<bool> exit_flag;
 

@@ -70,7 +70,7 @@ struct MappingData
     std::vector<pair<double, bbox_t>> depth_boxes_;
 
     // raycasting
-    Eigen::Vector2d x_;
+    Eigen::Vector2d center_;
     Eigen::Vector2d p1_, p2_, p3_, p4_;
 
     // project depth image
@@ -99,7 +99,7 @@ public:
 private:
 
     double measureDepth( cv::Mat depth_roi );
-    double measureIOU( MappingData &md1, MappingData &md2 );
+    double measureInter( MappingData &md1, MappingData &md2 );
 
     bool isInSight( MappingData &md );
     bool isInStamp( MappingData &md );
@@ -113,6 +113,7 @@ private:
     void processThread();
 
     void pubMarker( MappingData &md );
+    void pubCubeMarker( MappingData &md );
     void pubYieldMap();
     void pubHConcat( MappingData &md );
 
@@ -123,27 +124,25 @@ private:
     string weights_file;
     double thresh;
 
-    const int skip_pixel_ = 5;
-    const int depth_margin_x_ = 64;
-    const int depth_margin_y_ = 48;
+    const int SKIP_PIXEL = 5;
+    const int DEPTH_MARGIN_X = 64;
+    const int DEPTH_MARGIN_Y = 48;
 
+    const double DEPTH_SCALING_FACTOR = 1000;
     const double fx_ = 598.756;
     const double fy_ = 598.756;
     const double cx_ = 326.344;
     const double cy_ = 250.244;
-    const double depth_scaling_factor_ = 1000;
-
     const Eigen::Matrix3d K = (Eigen::Matrix3d() << fx_, 0, cx_,
                                                     0,  fy_,cy_,
                                                     0,  0,  1).finished();
+    const int WIDTH = 640;
+    const int HEIGHT = 480;
+    const int COLS = WIDTH;
+    const int ROWS = HEIGHT;
 
-    const int width_ = 640;
-    const int height_ = 480;
-    const int cols_ = 640;
-    const int rows_ = 480;
-
-    const double raycastDepth_ = 2.0;
-    const double raycastBreadth = 0.8;
+    const double RAYCAST_DEPTH = 2.0;
+    const double RAYCAST_BREADTH = 0.8;
 
     std::unique_ptr<Detector> detector_;
 

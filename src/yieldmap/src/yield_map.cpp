@@ -78,7 +78,7 @@ void YieldMap::prepareThread()
             listener_.lookupTransform("world", "body", ros::Time(0), body2world);
             listener_.lookupTransform("body", "camera", ros::Time(0), camera2body);
             /*
-            
+
               (p1)      (p2)
                 * * * * *
                 *       *
@@ -88,17 +88,17 @@ void YieldMap::prepareThread()
               (p4)      (p3)
             
             */
-            p1 = body2world * tf::Point(raycastDepth_, raycastBreadth, 0);
-            p2 = body2world * tf::Point(raycastDepth_, -raycastBreadth, 0);
-            p3 = body2world * tf::Point(raycastDepth_ - 2 * raycastBreadth, -raycastBreadth, 0);
-            p4 = body2world * tf::Point(raycastDepth_ - 2 * raycastBreadth, raycastBreadth, 0);
-            x = body2world * tf::Point(raycastDepth_ - raycastBreadth, 0, 0);
+            p1 = body2world * tf::Point(RAYCAST_DEPTH, RAYCAST_BREADTH, 0);
+            p2 = body2world * tf::Point(RAYCAST_DEPTH, -RAYCAST_BREADTH, 0);
+            p3 = body2world * tf::Point(RAYCAST_DEPTH - 2 * RAYCAST_BREADTH, -RAYCAST_BREADTH, 0);
+            p4 = body2world * tf::Point(RAYCAST_DEPTH - 2 * RAYCAST_BREADTH, RAYCAST_BREADTH, 0);
+            x = body2world * tf::Point(RAYCAST_DEPTH - RAYCAST_BREADTH, 0, 0);
 
             mapping_data.p1_ = Eigen::Vector2d(p1.x(), p1.y());
             mapping_data.p2_ = Eigen::Vector2d(p2.x(), p2.y());
             mapping_data.p3_ = Eigen::Vector2d(p3.x(), p3.y());
             mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
-            mapping_data.x_ = Eigen::Vector2d(x.x(), x.y());
+            mapping_data.center_ = Eigen::Vector2d(x.x(), x.y());
 
             mapping_data.body2world_ = body2world;
             mapping_data.camera2body_ = camera2body;
@@ -160,7 +160,7 @@ void YieldMap::detectThread()
         std::vector<bbox_t> result_boxes;
 
         if (image_ptr)
-            result_boxes = detector_->detect_resized(*image_ptr, width_, height_, 0.5, true);
+            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.5, true);
         
 
         mapping_data.result_boxes_ = result_boxes;
@@ -250,8 +250,6 @@ void YieldMap::trackThread()
 
         pubHConcat(mapping_data);
 
-
-
     }
     cout << "trackThread exit" << endl;
     
@@ -278,7 +276,6 @@ void YieldMap::processThread()
                 
             }
 
-        
             projectDepthImage(mapping_data);
             pcl::toROSMsg(*mapping_data.proj_pts_, proj_cloud);
             proj_cloud.header.stamp = ros::Time::now();
@@ -372,10 +369,10 @@ void YieldMap::pubHConcat(MappingData &md)
 
     // Identify if in sight
     if (md.is_sight)
-        cv::rectangle(dep, cv::Rect(width_ / 2 - 40, 60, 60, height_ - 60 * 2), {0, 255, 0}, 3, 8);
+        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
 
     else
-        cv::rectangle(dep, cv::Rect(width_ / 2 - 40, 60, 60, height_ - 60 * 2), {0, 0, 255}, 3, 8);
+        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
 
 
     if(isInStamp(md))
@@ -407,13 +404,13 @@ void YieldMap::projectDepthImage(MappingData &md)
     pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
     int proj_points_cnt_ = 0;
 
-    for (int v = depth_margin_y_; v < rows_ - depth_margin_y_; v += skip_pixel_)
+    for (int v = DEPTH_MARGIN_Y; v < ROWS - DEPTH_MARGIN_Y; v += SKIP_PIXEL)
     {
         uint16_t *row_ptr = depth_raw.ptr<uint16_t>(v);
 
-        for (int u = depth_margin_x_; u < cols_ - depth_margin_x_; u += skip_pixel_)
+        for (int u = DEPTH_MARGIN_X; u < COLS - DEPTH_MARGIN_X; u += SKIP_PIXEL)
         {
-            double distance = row_ptr[u] / depth_scaling_factor_;
+            double distance = row_ptr[u] / DEPTH_SCALING_FACTOR;
 
             if (distance < 0.8 || distance > 2.0)
                 continue;
@@ -456,7 +453,7 @@ double YieldMap::measureDepth( cv::Mat depth_roi)
 
         for (int u = 0; u < roi_size.width; u += 2)
         {
-            double distance = (double)row_ptr[u] / depth_scaling_factor_;
+            double distance = (double)row_ptr[u] / DEPTH_SCALING_FACTOR;
 
             if (distance < 0.8 || distance > 2.0)
                 continue;
@@ -495,9 +492,25 @@ double YieldMap::measureDepth( cv::Mat depth_roi)
     return -1;
 }
 
-double YieldMap::measureIOU( MappingData &md1, MappingData &md2 )
+double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 {
+    double distance = sqrt(pow(md1.center_.x() - md2.center_.x(), 2) + pow(md1.center_.y() - md2.center_.y(), 2));
+    double radius = RAYCAST_BREADTH;
 
+    if ( distance > 2 * radius ) {
+        return 0;
+    }
+
+    if (distance < 0.01 )
+    {
+        return M_PI * radius * radius;
+    }
+    double inter_angle = 2 * acos((distance * distance) / (2 * radius * distance));
+
+    double sector_area = 0.5 * inter_angle * radius * radius;
+    double triangle_area = 0.5 * radius * radius * sin(inter_angle);
+
+    return 2 * (sector_area - triangle_area) / (M_PI * radius * radius);
 
 }
 
@@ -511,7 +524,7 @@ bool YieldMap::isInSight(MappingData &md)
         sum += v.second.x + v.second.w / 2;
     }
 
-    return abs(sum / cnt - width_ / 2) < 60;
+    return abs(sum / cnt - WIDTH / 2) < 60;
 }
 
 bool YieldMap::isInStamp(MappingData &md)
@@ -569,6 +582,33 @@ void YieldMap::pubMarker( MappingData &md )
     marker.points.push_back(p3);
     marker.points.push_back(p4);
     marker.points.push_back(p1);
+
+    // 发布marker
+    pub_marker_.publish(marker);
+}
+
+void YieldMap::pubCubeMarker( MappingData &md )
+{
+
+     visualization_msgs::Marker marker;
+    marker.type = visualization_msgs::Marker::CUBE;
+    marker.header.frame_id = "world";
+    marker.header.stamp = ros::Time::now();
+    marker.scale.x = 1.0;
+    marker.scale.y = 1.0;
+    marker.scale.z = 1.0;
+    marker.pose.position.x = md.center_.x();
+    marker.pose.position.y = md.center_.y();
+    marker.pose.position.z = 0.8;
+
+    marker.pose.orientation.x = md.body2world_.getRotation().x();
+    marker.pose.orientation.y = md.body2world_.getRotation().y();
+    marker.pose.orientation.z = md.body2world_.getRotation().z();
+    marker.pose.orientation.w = md.body2world_.getRotation().w();
+    marker.color.r = 88.0 / 255.0;
+    marker.color.g = 88.0 / 255.0;
+    marker.color.b = 88.0 / 255.0;
+    marker.color.a = 0.3;
 
     // 发布marker
     pub_marker_.publish(marker);

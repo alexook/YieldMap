@@ -39,7 +39,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     fps_ = 0;
     start_time_ = ros::Time::now().toSec();
 
-    syncProcess();
+    StartThread();
 }
 
 YieldMap::~YieldMap()
@@ -53,7 +53,7 @@ YieldMap::~YieldMap()
 
 }
 
-void YieldMap::syncProcess()
+void YieldMap::StartThread()
 {
     thread_prepare = std::thread(&YieldMap::prepareThread, this);
     thread_detect = std::thread(&YieldMap::detectThread, this);
@@ -647,6 +647,7 @@ void YieldMap::pubYieldMap()
     {
 
     }
+
     projectDepthImage(mapping_data);
     pcl::toROSMsg(*mapping_data.proj_pts_, proj_cloud);
     proj_cloud.header.stamp = ros::Time::now();

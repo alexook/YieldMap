@@ -106,10 +106,11 @@ private:
 
     bool isInSight( MappingData &md );
     bool isInStamp( MappingData &md );
+    bool isInMap( MappingData &md );
 
     void projectDepthImage( MappingData &md );
 
-    void syncProcess();
+    void StartThread();
     void prepareThread();
     void detectThread();
     void trackThread();

@@ -37,7 +37,6 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     fps_counter = 0;
     current_fps = 0;
 
-
     syncProcess();
 }
 
@@ -164,7 +163,6 @@ void YieldMap::detectThread()
         
 
         mapping_data.result_boxes_ = result_boxes;
-
         detect2track.send(mapping_data);
     }
 
@@ -185,8 +183,11 @@ void YieldMap::trackThread()
         result_boxes = mapping_data.result_boxes_;
         //result_boxes = detector_->tracking_id(result_boxes, true, 8, 30);
 
-        if (result_boxes.empty())
+        if (result_boxes.empty()) 
+        {
+            pubHConcat(mapping_data);
             continue;
+        }
         
 
         for (auto &box : result_boxes)
@@ -330,6 +331,20 @@ void YieldMap::pubHConcat(MappingData &md)
     std::string obj_str = "";
     std::string depth_str = "";
 
+    if (md.result_boxes_.empty())
+    {
+        cv::putText(img, "No detection", cv::Point2f(540, 25), cv::FONT_HERSHEY_SIMPLEX, 1.2, cv::Scalar(0, 0, 255), 2);
+        
+
+        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
+        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
+        
+        cv::hconcat(img, dep, concat);
+
+        pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
+        return;
+    }
+
     // Draw color image
     for (auto &v : md.result_boxes_)
     {
@@ -344,8 +359,7 @@ void YieldMap::pubHConcat(MappingData &md)
         // Draw boxes
         cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(180, 255, 0), 2);
         // cv::circle(img, cv::Point2f(circle_x, circle_y), radius, cv::Scalar(0, 128, 255), 2);
-        
-        
+
         // Show label
         cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(255, 0, 255), 1);
         //cv::putText(img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);

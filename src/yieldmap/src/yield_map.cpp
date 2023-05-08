@@ -333,7 +333,7 @@ void YieldMap::pubHConcat(MappingData &md)
 
     if (md.result_boxes_.empty())
     {
-        cv::putText(img, "No detection", cv::Point2f(540, 25), cv::FONT_HERSHEY_SIMPLEX, 1.2, cv::Scalar(0, 0, 255), 2);
+        cv::putText(img, "No detection", cv::Point2f(480, 50), cv::FONT_HERSHEY_SIMPLEX, 1.2, cv::Scalar(0, 0, 255), 2);
         
 
         cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);

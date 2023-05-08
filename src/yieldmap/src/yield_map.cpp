@@ -34,8 +34,9 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
 
 
     exit_flag = 0;
-    fps_counter = 0;
-    current_fps = 0;
+    fps_cnt_ = 0;
+    fps_ = 0;
+    start_time_ = ros::Time::now();
 
     syncProcess();
 }
@@ -133,6 +134,7 @@ void YieldMap::prepareThread()
             mapping_data.frame_cnt_ = frame_cnt++;
             mapping_data.has_depth_ = true;
 
+            fps_cnt_++;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));    
 
             prepare2detect.send(mapping_data);
@@ -176,6 +178,15 @@ void YieldMap::trackThread()
     while(!exit_flag)
     {
         ROS_INFO("trackThread running...");
+
+        end_time_ = ros::Time::now();
+        if (end_time_.toSec() - start_time_.toSec() > 1)
+        {
+            fps_ = fps_cnt_ / (end_time_.toSec() - start_time_.toSec());
+            fps_cnt_ = 0;
+            start_time_ = end_time_;
+        }
+
         detect2track.receive(mapping_data);
 
         std::vector<bbox_t> result_boxes; 
@@ -244,7 +255,7 @@ void YieldMap::trackThread()
         mapping_data.result_boxes_ = result_boxes;
         mapping_data.depth_boxes_ = depth_boxes;
         mapping_data.is_sight = isInSight(mapping_data);
-        mapping_data_buf_.push_back(make_pair(ros::Time::now(), mapping_data));
+        mapping_data_buf_.push_back(mapping_data);
 
         // cout mapping data buf size
         cout << "mapping_data_buf_ size: " << mapping_data_buf_.size() << endl;
@@ -265,12 +276,12 @@ void YieldMap::processThread()
         ROS_INFO("processThread running...");
         if (!mapping_data_buf_.empty())
         {
-            MappingData mapping_data = mapping_data_buf_.back().second;
+            MappingData mapping_data = mapping_data_buf_.back();
 
             if (mapping_data_list_.empty())
             {
                 projectDepthImage(mapping_data);
-                mapping_data_list_.push_back(make_pair(ros::Time::now(), mapping_data));
+                mapping_data_list_.push_back( mapping_data);
             }
             else
             {
@@ -322,87 +333,7 @@ void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &im
 
 }
 
-void YieldMap::pubHConcat(MappingData &md)
-{
 
-    cv::Mat concat;
-    cv::Mat img = md.image_draw_;
-    cv::Mat dep = md.depth_draw_;
-    std::string obj_str = "";
-    std::string depth_str = "";
-
-    if (md.result_boxes_.empty())
-    {
-        cv::putText(img, "No detection", cv::Point2f(480, 50), cv::FONT_HERSHEY_SIMPLEX, 1.2, cv::Scalar(0, 0, 255), 2);
-        
-
-        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
-        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
-        
-        cv::hconcat(img, dep, concat);
-
-        pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
-        return;
-    }
-
-    // Draw color image
-    for (auto &v : md.result_boxes_)
-    {
-        // int circle_x = v.x + v.w / 2;
-        // int circle_y = v.y + v.h / 2;
-        // int radius =  max((int)v.w, 20) / 2;
-
-        //obj_str = std::to_string(v.track_id);
-        if (v.z_3d > 0)
-            depth_str = cv::format("%.3f", v.z_3d) + "m";
-
-        // Draw boxes
-        cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(180, 255, 0), 2);
-        // cv::circle(img, cv::Point2f(circle_x, circle_y), radius, cv::Scalar(0, 128, 255), 2);
-
-        // Show label
-        cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(255, 0, 255), 1);
-        //cv::putText(img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);
-    }
-
-    // Draw depth image
-    for (auto &p : md.depth_boxes_)
-    {   
-        //obj_str = std::to_string(p.second.track_id);
-        cv::rectangle(dep, cv::Rect(p.second.x, p.second.y, p.second.w, p.second.h), cv::Scalar(255, 0, 255), 2);
-        //cv::putText(dep, obj_str, cv::Point2f(p.second.x, p.second.y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 255, 255), 1);
-    }
-
-    // Draw FPS
-    if (current_fps > 0)
-    {
-        std::string fps_str = "FPS: " + std::to_string(current_fps);
-        cv::putText(img, fps_str, cv::Point2f(540, 25), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.2, cv::Scalar(0, 0, 255), 2);
-    }
-    
-
-    // Identify if in sight
-    if (md.is_sight)
-        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
-
-    else
-        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
-
-
-    if(isInStamp(md))
-    {
-        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 255, 0}, 3, 8);
-    }
-    else
-    {
-        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
-    }
-
-
-    cv::hconcat(img, dep, concat);
-    pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
-
-}
 
 void YieldMap::projectDepthImage(MappingData &md)
 {
@@ -627,3 +558,87 @@ void YieldMap::pubCubeMarker( MappingData &md )
     // 发布marker
     pub_marker_.publish(marker);
 }
+
+
+void YieldMap::pubHConcat(MappingData &md)
+{
+
+    cv::Mat concat;
+    cv::Mat img = md.image_draw_;
+    cv::Mat dep = md.depth_draw_;
+    std::string obj_str = "";
+    std::string depth_str = "";
+
+    if (md.result_boxes_.empty())
+    {
+        cv::putText(img, "No detection", cv::Point2f(380, 60), cv::FONT_HERSHEY_SIMPLEX, 1.2, cv::Scalar(0, 0, 255), 2);
+        
+
+        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
+        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
+        
+        cv::hconcat(img, dep, concat);
+
+        pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
+        return;
+    }
+
+    // Draw color image
+    for (auto &v : md.result_boxes_)
+    {
+        // int circle_x = v.x + v.w / 2;
+        // int circle_y = v.y + v.h / 2;
+        // int radius =  max((int)v.w, 20) / 2;
+
+        //obj_str = std::to_string(v.track_id);
+        if (v.z_3d > 0)
+            depth_str = cv::format("%.3f", v.z_3d) + "m";
+
+        // Draw boxes
+        cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(180, 255, 0), 2);
+        // cv::circle(img, cv::Point2f(circle_x, circle_y), radius, cv::Scalar(0, 128, 255), 2);
+
+        // Show label
+        cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(255, 0, 255), 1);
+        //cv::putText(img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);
+    }
+
+    // Draw depth image
+    for (auto &p : md.depth_boxes_)
+    {   
+        //obj_str = std::to_string(p.second.track_id);
+        cv::rectangle(dep, cv::Rect(p.second.x, p.second.y, p.second.w, p.second.h), cv::Scalar(255, 0, 255), 2);
+        //cv::putText(dep, obj_str, cv::Point2f(p.second.x, p.second.y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 255, 255), 1);
+    }
+
+    // Draw FPS
+    if (fps_ > 0)
+    {
+        std::string fps_str = "FPS: " + std::to_string(fps_);
+        cv::putText(img, fps_str, cv::Point2f(450, 60), cv::FONT_HERSHEY_COMPLEX_SMALL, 1.2, cv::Scalar(0, 0, 255), 2);
+    }
+    
+
+    // Identify if in sight
+    if (md.is_sight)
+        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
+
+    else
+        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
+
+
+    if(isInStamp(md))
+    {
+        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 255, 0}, 3, 8);
+    }
+    else
+    {
+        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
+    }
+
+    cv::hconcat(img, dep, concat);
+    pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
+
+}
+
+

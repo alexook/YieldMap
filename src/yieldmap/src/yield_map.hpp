@@ -76,6 +76,10 @@ struct MappingData
     // project depth image
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
 
+
+    // time stamp
+    double time_;
+
     // flags of map state
     bool has_depth_;
     bool has_odom_;
@@ -85,7 +89,7 @@ struct MappingData
     bool is_stamp;
     bool is_sight;
     int frame_cnt_;
-
+    
 
 };
 
@@ -171,15 +175,16 @@ private:
     boost::circular_buffer<std::pair<ros::Time, cv::Mat>> image_buffer_;
     boost::circular_buffer<std::pair<ros::Time, cv::Mat>> depth_buffer_;
 
-    boost::circular_buffer<std::pair<ros::Time, MappingData>> mapping_data_buf_;
+    boost::circular_buffer< MappingData > mapping_data_buf_;
 
-    std::list<std::pair<ros::Time, MappingData>> mapping_data_list_;
+    std::list< MappingData > mapping_data_list_;
 
 
-    std::atomic<int> fps_counter;
-    std::atomic<int> current_fps;
+    std::atomic<int> fps_cnt_;
+    std::atomic<int> fps_;
+    ros::Time start_time_, end_time_;
+
     std::atomic<bool> exit_flag;
-    ros::Time start_time, end_time;
 
     std::thread thread_prepare, thread_detect, thread_track, thread_precess;
     utility::SyncedDataExchange<MappingData> prepare2detect, detect2track;

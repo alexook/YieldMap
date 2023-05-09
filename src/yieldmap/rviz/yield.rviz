@@ -6,9 +6,11 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Image1
         - /TF1/Frames1
         - /PointCloud3/Autocompute Value Bounds1
         - /PointCloud21/Autocompute Value Bounds1
+        - /Image2
       Splitter Ratio: 0.5
     Tree Height: 241
   - Class: rviz/Selection
@@ -56,7 +58,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /yieldmap/hconcat
+      Image Topic: /yieldmap/rviz_res
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -236,7 +238,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /yieldmap/rviz_res
+      Image Topic: /yieldmap/hconcat
       Max Value: 1
       Median window: 5
       Min Value: 0

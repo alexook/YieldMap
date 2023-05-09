@@ -306,8 +306,8 @@ void YieldMap::processThread()
             else
                 newest_data.has_cloud_ = false;
 
-            //if (newest_data.is_stamp_ && newest_data.is_sight_)
-            if (newest_data.is_sight_)
+            //if (newest_data.is_sight_)
+            if (newest_data.is_stamp_ && newest_data.is_sight_)
             {
                 if (mapping_data_list_.empty())
                 {
@@ -340,9 +340,7 @@ void YieldMap::processThread()
 
             // cout mapping_data_list_ size
             cout << "mapping_data_list_ size: " << mapping_data_list_.size() << endl;
-
             pubYieldMap(newest_data);
-
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -763,14 +761,32 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
 {
     double x = click_point->point.x;
     double y = click_point->point.y;
+    cv::Mat rviz_img;
+    cv::Mat info_img(120, 640, CV_8UC3, cv::Scalar(255, 255, 255));
+    string fruit_cnt = "Total: ";
+    string fruit_loca = "Location: ( ";
 
     for (auto &m : mapping_data_list_)
     {
         if ( sqrt( pow( x - m.center_.x(), 2 ) + pow( y - m.center_.y(), 2 ))  < RAYCAST_BREADTH )
         {
             ROS_WARN("Clicked point has target: %f, %f", x, y);
-            // publish cv mat m.image_draw ros image
-            pub_rviz_click_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", m.image_draw_).toImageMsg());
+            
+            fruit_cnt += to_string(m.result_boxes_.size());
+            string str = to_string(m.center_.x());
+            str = str.substr(0, str.find('.') + 3);
+            fruit_loca += str + ", ";
+            str = to_string(m.center_.y());
+            str = str.substr(0, str.find('.') + 3);
+            fruit_loca += str + " )";
+
+            cv::putText(info_img, fruit_cnt, cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+            cv::putText(info_img, fruit_loca, cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+            cv::vconcat(info_img, m.image_draw_, rviz_img);
+            cv::vconcat(rviz_img, m.depth_draw_, rviz_img);
+
+            pub_rviz_click_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", rviz_img).toImageMsg());
             
             break;
 

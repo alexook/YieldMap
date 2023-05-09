@@ -180,9 +180,8 @@ void YieldMap::detectThread()
         std::vector<bbox_t> result_boxes;
 
         if (image_ptr)
-            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.4, true);
+            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.6, true);
         
-
         mapping_data.result_boxes_ = result_boxes;
         detect2track.send(mapping_data);
     }
@@ -772,7 +771,7 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
         {
             ROS_WARN("Clicked point has target: %f, %f", x, y);
             
-            fruit_cnt += to_string(m.result_boxes_.size());
+            fruit_cnt += to_string(m.depth_boxes_.size());
             string str = to_string(m.center_.x());
             str = str.substr(0, str.find('.') + 3);
             fruit_loca += str + ", ";

@@ -89,7 +89,6 @@ struct MappingData
     
     bool is_stamp_;
     bool is_sight_;
-    bool is_show_;
 
     int frame_cnt_;
 };

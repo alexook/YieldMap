@@ -7,6 +7,8 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     pub_hconcat_ = node_.advertise<sensor_msgs::Image>("/yieldmap/hconcat", 1);
     pub_marker_ = node_.advertise<visualization_msgs::Marker>("/yieldmap/marker", 1);
 
+    sub_rviz_click_ = node_.subscribe("/clicked_point", 1, &YieldMap::rvizClickCallback, this);
+
     sub_image_.reset(new message_filters::Subscriber<sensor_msgs::CompressedImage>(node_, "/camera/color/image_raw/compressed", 10));
     sub_depth_.reset(new message_filters::Subscriber<sensor_msgs::Image>(node_, "/camera/aligned_depth_to_color/image_raw", 10));
     sync_image_depth_.reset(new message_filters::Synchronizer<SyncPolicyImageDepth>( SyncPolicyImageDepth(10), *sub_image_, *sub_depth_));
@@ -303,7 +305,7 @@ void YieldMap::processThread()
                 measureProject(newest_data);
             else
                 newest_data.has_cloud_ = false;
-                
+
             if (newest_data.is_stamp_ && newest_data.is_sight_)
             {
                 if (mapping_data_list_.empty())
@@ -346,23 +348,6 @@ void YieldMap::processThread()
     }
 
     cout << "processThread exit" << endl;
-}
-
-void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input)
-{
-    // ros::Time stamp = image_ptr->header.stamp;
-    ros::Time stamp = ros::Time::now();
-    
-    cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::BGR8);
-    cv::Mat image = image_ptr->image;
-
-    cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_input, sensor_msgs::image_encodings::TYPE_16UC1);
-    cv::Mat depth = depth_ptr->image;
-
-
-    image_buffer_.push_back(std::make_pair(stamp, image));
-    depth_buffer_.push_back(std::make_pair(stamp, depth));
-
 }
 
 void YieldMap::measureProject(MappingData &md)
@@ -508,7 +493,8 @@ bool YieldMap::isInSight(MappingData &md)
 bool YieldMap::isInStamp(MappingData &md)
 {
     // MappingData his_data = history_data_[5];
-    if (mapping_data_buf_.size() < 5) return false;
+    if (mapping_data_buf_.size() < 5) 
+        return false;
 
     return measureInter(mapping_data_buf_[0], md) > 0.95;
 
@@ -720,7 +706,6 @@ void YieldMap::pubYieldMap(MappingData &md)
     if (md.has_cloud_)
         *mergedCloud = *md.proj_pts_;
 
-
     for (auto &m : mapping_data_list_)
     {
         if(isInter(md, m)) continue;
@@ -751,5 +736,37 @@ void YieldMap::pubYieldMap(MappingData &md)
 
     pubMarker(md);
 
+}
+
+void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input)
+{
+    // ros::Time stamp = image_ptr->header.stamp;
+    ros::Time stamp = ros::Time::now();
+    
+    cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::BGR8);
+    cv::Mat image = image_ptr->image;
+
+    cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_input, sensor_msgs::image_encodings::TYPE_16UC1);
+    cv::Mat depth = depth_ptr->image;
+
+
+    image_buffer_.push_back(std::make_pair(stamp, image));
+    depth_buffer_.push_back(std::make_pair(stamp, depth));
+
+}
+
+void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &click_point)
+{
+    double x = click_point->point.x;
+    double y = click_point->point.y;
+
+    for (auto &m : mapping_data_list_)
+    {
+        if ( sqrt( pow( x - m.center_.x(), 2 ) + pow( y - m.center_.y(), 2 ))  < RAYCAST_BREADTH )
+        {
+            ROS_WARN("Click Point: %f, %f", x, y);
+        }
+
+    }
 }
 

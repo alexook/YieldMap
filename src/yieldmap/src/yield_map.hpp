@@ -89,6 +89,7 @@ struct MappingData
     
     bool is_stamp_;
     bool is_sight_;
+    bool is_show_;
 
     int frame_cnt_;
 };
@@ -123,6 +124,7 @@ private:
     void pubYieldMap(MappingData &md);
 
     void imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input);
+    void rvizClickCallback(const geometry_msgs::PointStampedConstPtr &click_point);
 
     string names_file;
     string cfg_file;
@@ -164,7 +166,7 @@ private:
     ros::Publisher pub_proj_depth_;
     ros::Publisher pub_margin_depth_;
 
-    ros::Subscriber sub_save_switch_;
+    ros::Subscriber sub_rviz_click_;
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> SyncPolicyImageDepth;
     typedef shared_ptr<message_filters::Synchronizer<SyncPolicyImageDepth>> SynchronizerImageDepth;

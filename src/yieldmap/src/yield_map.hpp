@@ -102,6 +102,7 @@ public:
 
 private:
 
+    void   measureProject( MappingData &md );
     double measureDepth( cv::Mat depth_roi );
     double measureInter( MappingData &md1, MappingData &md2 );
 
@@ -109,7 +110,6 @@ private:
     bool isInStamp( MappingData &md );
     bool isInMap( MappingData &md );
     bool isInter( MappingData &md1, MappingData &md2 );
-    void projectDepthImage( MappingData &md );
 
     void StartThread();
     void prepareThread();
@@ -121,7 +121,6 @@ private:
     void pubCubeMarker( MappingData &md );
     void pubHConcat( MappingData &md );
     void pubYieldMap(MappingData &md);
-
 
     void imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input);
 

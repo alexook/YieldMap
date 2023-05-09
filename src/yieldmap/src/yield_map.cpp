@@ -304,7 +304,7 @@ void YieldMap::processThread()
         if (!mapping_data_buf_.empty())
         {
             MappingData newest_data = mapping_data_buf_.back();
-            projectDepthImage(newest_data);
+            measureProject(newest_data);
 
             if (newest_data.is_stamp_ && newest_data.is_sight_)
             {
@@ -366,7 +366,7 @@ void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &im
 
 }
 
-void YieldMap::projectDepthImage(MappingData &md)
+void YieldMap::measureProject(MappingData &md)
 {
     cv::Mat depth_raw = md.depth_raw_;
 

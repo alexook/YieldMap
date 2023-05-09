@@ -306,7 +306,8 @@ void YieldMap::processThread()
             else
                 newest_data.has_cloud_ = false;
 
-            if (newest_data.is_stamp_ && newest_data.is_sight_)
+            //if (newest_data.is_stamp_ && newest_data.is_sight_)
+            if (newest_data.is_sight_)
             {
                 if (mapping_data_list_.empty())
                 {

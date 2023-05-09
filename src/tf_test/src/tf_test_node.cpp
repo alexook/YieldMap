@@ -8,7 +8,7 @@
 
 ros::Publisher pub_odom;
 
-void pubTF(const std_msgs::Header &header, double t)
+void pubTF(const std_msgs::Header &header, double x, double y, double a)
 {
 
     static tf::TransformBroadcaster br;
@@ -19,24 +19,28 @@ void pubTF(const std_msgs::Header &header, double t)
 
     // body frame
     Eigen::Vector3d Ps;
-    Ps.x() = 1.0;
-    Ps.y() = t;
+    Ps.x() = x;
+    Ps.y() = y;
     Ps.z() = 0.5;
     
     Eigen::Quaterniond Qs;
-    Qs.x() = 0.0;
-    Qs.y() = 0.0;
-    Qs.z() = 0.0;
-    Qs.w() = 1.0;
+    // Qs.x() = 0.0;
+    // Qs.y() = 0.0;
+    // Qs.z() = 0.0;
+    // Qs.w() = 1.0;
+
+    // q.setW(Qs.w());
+    // q.setX(Qs.x());
+    // q.setY(Qs.y());
+    // q.setZ(Qs.z());
+    q.setEuler(0, 0, M_PI * (a / 180.0));
 
     transform.setOrigin(tf::Vector3(Ps.x(),
                                     Ps.y(),
                                     Ps.z()));
-    q.setW(Qs.w());
-    q.setX(Qs.x());
-    q.setY(Qs.y());
-    q.setZ(Qs.z());
+
     transform.setRotation(q);
+
     br.sendTransform(tf::StampedTransform(transform, header.stamp, "world", "body"));
 
     // camera frame
@@ -93,12 +97,29 @@ int main(int argc, char *argv[])
         // rosinfo output : odom done
         ROS_INFO("odom done");
 
-        for (int i = 0; i < 400; i++)
+
+        for (int i = 0; i < 200; i++)
         {
             std_msgs::Header header;
             header.stamp = ros::Time::now();
-            pubTF(header, 0.01 * i);
-            // delay 0.1s
+            pubTF(header, 0, 0, (45.0 / 200.0 * i));
+            ros::Duration(0.02).sleep();
+        }
+
+
+        for (int i = 0; i < 100; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 0.01 * i,  0.01 * i, 45);
+            ros::Duration(0.03).sleep();
+        }
+
+        for (int i = 0; i < 200; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 1, 1, 45);
             ros::Duration(0.02).sleep();
         }
 
@@ -106,25 +127,55 @@ int main(int argc, char *argv[])
         {
             std_msgs::Header header;
             header.stamp = ros::Time::now();
-            pubTF(header, 4);
-            ros::Duration(0.2).sleep();
+            pubTF( header, 1.0 - (0.01 * i),  1.0 - (0.01 * i), 45);
+            ros::Duration(0.03).sleep();
         }
 
-        for (int i = 400; i > 0; i--)
+
+        for (int i = 0; i < 200; i++)
         {
             std_msgs::Header header;
             header.stamp = ros::Time::now();
-            pubTF(header, 0.01 * i);
+            pubTF(header, 0, 0, 45 - (90.0 / 200.0 * i));
             ros::Duration(0.02).sleep();
         }
+
 
         for (int i = 0; i < 100; i++)
         {
             std_msgs::Header header;
             header.stamp = ros::Time::now();
-            pubTF(header, 0);
-            ros::Duration(0.2).sleep();
+            pubTF(header, (0.01 * i), -(0.01 * i), -45);
+            ros::Duration(0.03).sleep();
         }
+
+
+        for (int i = 0; i < 200; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 1, -1, -45);
+            ros::Duration(0.02).sleep();
+        }
+
+
+        for (int i = 0; i < 100; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 1 - (0.01 * i), -1 + (0.01 * i), -45);
+            ros::Duration(0.03).sleep();
+        }
+
+        for (int i = 0; i < 200; i++)
+        {
+            std_msgs::Header header;
+            header.stamp = ros::Time::now();
+            pubTF(header, 0, 0, -45 + (45.0 / 200.0 * i));
+            ros::Duration(0.02).sleep();
+        }
+
+
         // std_msgs::Header header;
         // header.stamp = ros::Time::now();
         // pubTF(header);

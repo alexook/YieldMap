@@ -30,8 +30,24 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     mapping_data_buf_.set_capacity(10);
     history_data_.set_capacity(3);
 
-    image_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_8UC3)));
-    depth_buffer_.push_back(std::make_pair(ros::Time::now(), cv::Mat::zeros(480, 640, CV_16UC1)));
+    cv::Mat rgb = cv::Mat::zeros(HEIGHT, WIDTH, CV_8UC3);
+    cv::Mat dep = cv::Mat::zeros(HEIGHT, WIDTH, CV_16UC1);
+
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            rgb.at<cv::Vec3b>(y, x) = cv::Vec3b(255 * x / WIDTH, 0, 255 * y / WIDTH);
+        }
+    }
+
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            dep.at<uint16_t>(y, x) = 200 + 4000 * x / WIDTH;
+        }
+    }
+
+    image_buffer_.push_back(std::make_pair(ros::Time::now(), rgb));
+    depth_buffer_.push_back(std::make_pair(ros::Time::now(), dep));
+
 
     exit_flag = 0;
 
@@ -219,8 +235,8 @@ void YieldMap::trackThread()
             double distance = measureDepth(depth_roi);
             box.z_3d = distance;
 
-            if ((box.x + box.w / 2) < 80 || (box.x + box.w / 2) > 560 || 
-                (box.y + box.h / 2) < 60 || (box.y + box.h / 2) > 420 )
+            if ((box.x + box.w / 2) < DEPTH_MARGIN_X || (box.x + box.w / 2) > WIDTH - DEPTH_MARGIN_X || 
+                (box.y + box.h / 2) < DEPTH_MARGIN_Y || (box.y + box.h / 2) > HEIGHT - DEPTH_MARGIN_Y )
             {
                 //cout << "out of range" << endl;
                 continue;
@@ -287,7 +303,44 @@ void YieldMap::processThread()
         // ROS_INFO("processThread running...");
         if (!mapping_data_buf_.empty())
         {
-            pubYieldMap();
+            MappingData newest_data = mapping_data_buf_.back();
+            projectDepthImage(newest_data);
+
+            if (newest_data.is_stamp_ && newest_data.is_sight_)
+            {
+                if (mapping_data_list_.empty())
+                {
+                    mapping_data_list_.push_back(newest_data);
+                }
+                else
+                {
+                    if ( isInMap(newest_data) )
+                    {
+                        mapping_data_list_.remove_if([&]( MappingData &it) 
+                        { return isInter(it, newest_data ); });
+                    }
+                    mapping_data_list_.push_back(newest_data);
+                }
+
+            }
+
+            // 遍历 mapping_data_list_ 将measureInter() > 0.5 的元素删除
+            // for (auto iter = mapping_data_list_.begin(); iter != mapping_data_list_.end();)
+            // {
+            //     if (measureInter(newest_data, *iter) > 0.7)
+            //     {
+            //         iter = mapping_data_list_.erase(iter);
+            //     }
+            //     else
+            //     {
+            //         ++iter;
+            //     }
+            // }
+
+            // cout mapping_data_list_ size
+            cout << "mapping_data_list_ size: " << mapping_data_list_.size() << endl;
+            pubYieldMap(newest_data);
+
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -355,7 +408,7 @@ void YieldMap::projectDepthImage(MappingData &md)
     sor.setStddevMulThresh(1.0);
     sor.filter(*proj_pts_out);
     md.proj_pts_ = proj_pts_out;
-
+    md.has_cloud_ = true;
     // ROS_WARN("proj_points_cnt = %d", proj_points_cnt_);
     
 }
@@ -456,6 +509,21 @@ bool YieldMap::isInStamp(MappingData &md)
 
     return measureInter(mapping_data_buf_[0], md) > 0.95;
 
+}
+
+bool YieldMap::isInMap(MappingData &md)
+{
+    for (auto &v : mapping_data_list_)
+    {
+        if (isInter(v, md))
+            return true;
+    }
+    return false;
+}
+
+bool YieldMap::isInter(MappingData &md1, MappingData &md2)
+{
+    return (measureInter(md1, md2)) > 0.7;
 }
 
 void YieldMap::pubMarker( MappingData &md )
@@ -562,7 +630,7 @@ void YieldMap::pubHConcat(MappingData &md)
         cv::putText(img, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
 
         // cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
-        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
+        cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
         
         cv::hconcat(img, dep, concat);
 
@@ -620,11 +688,11 @@ void YieldMap::pubHConcat(MappingData &md)
 
     if(md.is_stamp_)
     {
-        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 255, 0}, 3, 8);
+        cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 255, 0}, 3, 8);
     }
     else
     {
-        cv::rectangle(dep, cv::Rect(80, 60, 480, 360), {0, 0, 255}, 3, 8);
+        cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
     }
 
     cv::hconcat(img, dep, concat);
@@ -632,30 +700,14 @@ void YieldMap::pubHConcat(MappingData &md)
 
 }
 
-void YieldMap::pubYieldMap()
+void YieldMap::pubYieldMap(MappingData &md)
 {
+
     sensor_msgs::PointCloud2 proj_cloud;
-
-    MappingData mapping_data = mapping_data_buf_.back();
-
-    if (mapping_data_list_.empty())
-    {
-        projectDepthImage(mapping_data);
-        mapping_data_list_.push_back(mapping_data);
-    }
-    else
-    {
-
-    }
-
-    projectDepthImage(mapping_data);
-    pcl::toROSMsg(*mapping_data.proj_pts_, proj_cloud);
-    proj_cloud.header.stamp = ros::Time::now();
-    proj_cloud.header.frame_id = "world";
-    pub_proj_depth_.publish(proj_cloud);
-
     sensor_msgs::PointCloud det_cloud;
-    for (auto &v : mapping_data.depth_boxes_)
+    pcl::PointCloud<pcl::PointXYZ>::Ptr mergedCloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    for (auto &v : md.depth_boxes_)
     {
         geometry_msgs::Point32 p;
         p.x = v.second.x_3d;
@@ -663,10 +715,36 @@ void YieldMap::pubYieldMap()
         p.z = v.second.z_3d;
         det_cloud.points.push_back(p);
     }
-    det_cloud.header.stamp = ros::Time::now();
-    det_cloud.header.frame_id = "world";
+
+    *mergedCloud = *md.proj_pts_;
+
+    for (auto &m : mapping_data_list_)
+    {
+        if(isInter(md, m)) continue;
+
+        *mergedCloud += *m.proj_pts_;
+        for (auto &box : m.depth_boxes_)
+        {
+            geometry_msgs::Point32 p;
+            p.x = box.second.x_3d;
+            p.y = box.second.y_3d;
+            p.z = box.second.z_3d;
+            det_cloud.points.push_back(p);
+        }
+
+    }
+
+    pcl::toROSMsg(*mergedCloud, proj_cloud);
+
+    std_msgs::Header header;
+    header.stamp = ros::Time::now();
+    header.frame_id = "world";
+
+    proj_cloud.header = header;
+    det_cloud.header = header;
+    pub_proj_depth_.publish(proj_cloud);
     pub_detected_.publish(det_cloud);
 
-    pubMarker(mapping_data);
+    pubMarker(md);
 
 }

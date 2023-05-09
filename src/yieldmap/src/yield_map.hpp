@@ -85,7 +85,8 @@ struct MappingData
     bool has_odom_;
     bool has_cloud_;
     bool has_new_detection_;
-
+    bool has_detection_;
+    
     bool is_stamp_;
     bool is_sight_;
 
@@ -107,7 +108,7 @@ private:
     bool isInSight( MappingData &md );
     bool isInStamp( MappingData &md );
     bool isInMap( MappingData &md );
-
+    bool isInter( MappingData &md1, MappingData &md2 );
     void projectDepthImage( MappingData &md );
 
     void StartThread();
@@ -118,8 +119,9 @@ private:
 
     void pubMarker( MappingData &md );
     void pubCubeMarker( MappingData &md );
-    void pubYieldMap();
     void pubHConcat( MappingData &md );
+    void pubYieldMap(MappingData &md);
+
 
     void imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input);
 
@@ -128,15 +130,16 @@ private:
     string weights_file;
     double thresh;
 
-    const int SKIP_PIXEL = 5;
-    const int DEPTH_MARGIN_X = 64;
-    const int DEPTH_MARGIN_Y = 48;
+    const int SKIP_PIXEL = 4;
+    const int DEPTH_MARGIN_X = 32;
+    const int DEPTH_MARGIN_Y = 32;
 
     const double DEPTH_SCALING_FACTOR = 1000;
     const double fx_ = 598.756;
     const double fy_ = 598.756;
     const double cx_ = 326.344;
     const double cy_ = 250.244;
+
     const Eigen::Matrix3d K = (Eigen::Matrix3d() << fx_, 0, cx_,
                                                     0,  fy_,cy_,
                                                     0,  0,  1).finished();

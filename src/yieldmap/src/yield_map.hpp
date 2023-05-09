@@ -166,6 +166,7 @@ private:
     ros::Publisher pub_proj_depth_;
     ros::Publisher pub_margin_depth_;
 
+    ros::Publisher pub_rviz_click_;
     ros::Subscriber sub_rviz_click_;
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> SyncPolicyImageDepth;

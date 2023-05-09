@@ -6,7 +6,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     pub_proj_depth_ = node_.advertise<sensor_msgs::PointCloud2>("/yieldmap/proj", 1);
     pub_hconcat_ = node_.advertise<sensor_msgs::Image>("/yieldmap/hconcat", 1);
     pub_marker_ = node_.advertise<visualization_msgs::Marker>("/yieldmap/marker", 1);
-
+    pub_rviz_click_ = node_.advertise<sensor_msgs::Image>("/yieldmap/rviz_res", 1);
     sub_rviz_click_ = node_.subscribe("/clicked_point", 1, &YieldMap::rvizClickCallback, this);
 
     sub_image_.reset(new message_filters::Subscriber<sensor_msgs::CompressedImage>(node_, "/camera/color/image_raw/compressed", 10));
@@ -184,7 +184,6 @@ void YieldMap::detectThread()
         
 
         mapping_data.result_boxes_ = result_boxes;
-        mapping_data.has_detection_ = result_boxes.size() > 0 ? true : false;
         detect2track.send(mapping_data);
     }
 
@@ -238,7 +237,7 @@ void YieldMap::trackThread()
                 continue;
             }
 
-            if (distance > 0.6 && distance < 2)
+            if (distance > 0.65 && distance < 2)
             {
  
                 Eigen::Vector3d pixel_uv(box.x + box.w / 2,
@@ -271,6 +270,7 @@ void YieldMap::trackThread()
 
         mapping_data.result_boxes_ = result_boxes;
         mapping_data.depth_boxes_ = depth_boxes;
+        mapping_data.has_detection_ = depth_boxes.size() > 0 ? true : false;
         mapping_data.is_sight_ = isInSight(mapping_data);
         mapping_data.is_stamp_ = isInStamp(mapping_data);
         mapping_data.update_time_ = ros::Time::now().toSec();
@@ -655,34 +655,37 @@ void YieldMap::pubHConcat(MappingData &md)
         //cv::putText(dep, obj_str, cv::Point2f(p.second.x, p.second.y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 255, 255), 1);
     }
 
+
+    cv::hconcat(img, dep, concat);
+
+
     // Draw FPS
     if ( md.has_new_detection_ && fps_ )
     {
         std::string fps_str = "FPS: " + std::to_string(fps_);
-        cv::putText(img, fps_str, cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 10), 2);
+        cv::putText(concat, fps_str, cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 10), 2);
     }
     else
     {
-        cv::putText(img, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
+        cv::putText(concat, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
     }
     
 
     if (md.is_sight_)
-        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
     else if(md.has_detection_)
-        cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
 
 
     if(md.is_stamp_)
     {
-        cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 255, 0}, 3, 8);
+        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 255, 0}, 3, 8);
     }
     else
     {
-        cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
+        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
     }
 
-    cv::hconcat(img, dep, concat);
     pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
 
 }
@@ -764,7 +767,12 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
     {
         if ( sqrt( pow( x - m.center_.x(), 2 ) + pow( y - m.center_.y(), 2 ))  < RAYCAST_BREADTH )
         {
-            ROS_WARN("Click Point: %f, %f", x, y);
+            ROS_WARN("Clicked point has target: %f, %f", x, y);
+            // publish cv mat m.image_draw ros image
+            pub_rviz_click_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", m.image_draw_).toImageMsg());
+            
+            break;
+
         }
 
     }

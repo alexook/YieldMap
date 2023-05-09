@@ -178,10 +178,11 @@ void YieldMap::detectThread()
         std::vector<bbox_t> result_boxes;
 
         if (image_ptr)
-            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.5, true);
+            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.4, true);
         
 
         mapping_data.result_boxes_ = result_boxes;
+        mapping_data.has_detection_ = result_boxes.size() > 0 ? true : false;
         detect2track.send(mapping_data);
     }
 
@@ -214,14 +215,7 @@ void YieldMap::trackThread()
         std::vector<pair<double, bbox_t>> depth_boxes;
         result_boxes = mapping_data.result_boxes_;
         //result_boxes = detector_->tracking_id(result_boxes, true, 8, 30);
-
-        if (result_boxes.empty()) 
-        {
-            pubHConcat(mapping_data);
-            continue;
-        }
         
-
         for (auto &box : result_boxes)
         {
             cv::Mat depth_roi;
@@ -304,8 +298,12 @@ void YieldMap::processThread()
         if (!mapping_data_buf_.empty())
         {
             MappingData newest_data = mapping_data_buf_.back();
-            measureProject(newest_data);
 
+            if(newest_data.has_detection_)
+                measureProject(newest_data);
+            else
+                newest_data.has_cloud_ = false;
+                
             if (newest_data.is_stamp_ && newest_data.is_sight_)
             {
                 if (mapping_data_list_.empty())
@@ -339,6 +337,7 @@ void YieldMap::processThread()
 
             // cout mapping_data_list_ size
             cout << "mapping_data_list_ size: " << mapping_data_list_.size() << endl;
+
             pubYieldMap(newest_data);
 
         }
@@ -495,6 +494,9 @@ bool YieldMap::isInSight(MappingData &md)
     int sum = 0;
     int cnt = md.depth_boxes_.size();
 
+    if (cnt == 0)
+        return false;
+
     for (auto &v : md.depth_boxes_)
     {
         sum += v.second.x + v.second.w / 2;
@@ -506,6 +508,7 @@ bool YieldMap::isInSight(MappingData &md)
 bool YieldMap::isInStamp(MappingData &md)
 {
     // MappingData his_data = history_data_[5];
+    if (mapping_data_buf_.size() < 5) return false;
 
     return measureInter(mapping_data_buf_[0], md) > 0.95;
 
@@ -625,18 +628,18 @@ void YieldMap::pubHConcat(MappingData &md)
     std::string obj_str = "";
     std::string depth_str = "";
 
-    if (md.result_boxes_.empty())
-    {
-        cv::putText(img, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
+    // if (!md.has_new_detection_)
+    // {
+    //     cv::putText(img, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
 
-        // cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
-        cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
+    //     // cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
+    //     cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
         
-        cv::hconcat(img, dep, concat);
+    //     cv::hconcat(img, dep, concat);
 
-        pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
-        return;
-    }
+    //     pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
+    //     return;
+    // }
 
     // Draw color image
     for (auto &v : md.result_boxes_)
@@ -678,11 +681,9 @@ void YieldMap::pubHConcat(MappingData &md)
     }
     
 
-    // Identify if in sight
     if (md.is_sight_)
         cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
-
-    else
+    else if(md.has_detection_)
         cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
 
 
@@ -716,13 +717,16 @@ void YieldMap::pubYieldMap(MappingData &md)
         det_cloud.points.push_back(p);
     }
 
-    *mergedCloud = *md.proj_pts_;
+    if (md.has_cloud_)
+        *mergedCloud = *md.proj_pts_;
+
 
     for (auto &m : mapping_data_list_)
     {
         if(isInter(md, m)) continue;
 
         *mergedCloud += *m.proj_pts_;
+
         for (auto &box : m.depth_boxes_)
         {
             geometry_msgs::Point32 p;
@@ -739,12 +743,13 @@ void YieldMap::pubYieldMap(MappingData &md)
     std_msgs::Header header;
     header.stamp = ros::Time::now();
     header.frame_id = "world";
-
     proj_cloud.header = header;
     det_cloud.header = header;
+
     pub_proj_depth_.publish(proj_cloud);
     pub_detected_.publish(det_cloud);
 
     pubMarker(md);
 
 }
+

@@ -104,6 +104,7 @@ private:
     void   measureProject( MappingData &md );
     double measureDepth( cv::Mat depth_roi );
     double measureInter( MappingData &md1, MappingData &md2 );
+    double measureSphereInter( MappingData &md1, MappingData &md2 );
 
     bool isInSight( MappingData &md );
     bool isInStamp( MappingData &md );

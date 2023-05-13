@@ -616,6 +616,29 @@ void YieldMap::pubCubeMarker( MappingData &md )
     pub_marker_.publish(marker);
 }
 
+void YieldMap::pubSphreMarker( MappingData &md )
+{
+
+     visualization_msgs::Marker marker;
+    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.header.frame_id = "world";
+    marker.header.stamp = ros::Time::now();
+    marker.scale.x = 1.6;
+    marker.scale.y = 1.6;
+    marker.scale.z = 1.6;
+    marker.pose.position.x = md.center_.x();
+    marker.pose.position.y = md.center_.y();
+    marker.pose.position.z = md.body2world_.getOrigin().z();
+
+    marker.color.r = 88.0 / 255.0;
+    marker.color.g = 88.0 / 255.0;
+    marker.color.b = 88.0 / 255.0;
+    marker.color.a = 0.3;
+
+    // 发布marker
+    pub_marker_.publish(marker);
+}
+
 void YieldMap::pubHConcat(MappingData &md)
 {
 
@@ -756,7 +779,7 @@ void YieldMap::pubYieldMap(MappingData &md)
     pub_proj_depth_.publish(proj_cloud);
     pub_detected_.publish(det_cloud);
 
-    pubMarker(md);
+    pubSphreMarker(md);
 
 }
 

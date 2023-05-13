@@ -118,6 +118,7 @@ private:
 
     void pubMarker( MappingData &md );
     void pubCubeMarker( MappingData &md );
+    void pubSphreMarker( MappingData &md );
     void pubHConcat( MappingData &md );
     void pubYieldMap(MappingData &md);
 

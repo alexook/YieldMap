@@ -132,6 +132,9 @@ private:
     string weights_file;
     double thresh;
 
+    int detect_rate;
+    int mapping_rate;
+
     const int SKIP_PIXEL = 4;
     const int DEPTH_MARGIN_X = 32;
     const int DEPTH_MARGIN_Y = 32;
@@ -191,8 +194,10 @@ private:
     std::list< MappingData > mapping_data_list_;
 
 
-    std::atomic<int> fps_cnt_;
-    std::atomic<int> fps_;
+    std::atomic<int> detect_fps_;
+    std::atomic<int> mapping_fps_;
+    std::atomic<int> mapping_fps_cnt_;
+    std::atomic<int> detect_fps_cnt_;
     double start_time_, end_time_;
 
     std::atomic<bool> exit_flag;

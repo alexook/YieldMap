@@ -21,7 +21,9 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     //node_.param<string>("names_file", names_file, "apple.names");
     node_.param<string>("cfg_file", cfg_file, "cfg/yolov7-tiny.cfg");
     node_.param<string>("weights_file", weights_file, "model/yolov7-tiny_final.weights");
-    node_.param<double>("thresh", thresh, 0.65);
+    node_.param<double>("thresh", thresh, 0.5);
+    node_.param<int>("detect_rate", detect_rate, 100);
+    node_.param<int>("mapping_rate", mapping_rate, 300);
 
     detector_ = std::unique_ptr<Detector>(new Detector(cfg_file, weights_file));
 
@@ -43,11 +45,11 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
         }
     }
 
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            dep.at<uint16_t>(y, x) = 200 + 4000 * x / WIDTH;
-        }
-    }
+    // for (int y = 0; y < HEIGHT; y++) {
+    //     for (int x = 0; x < WIDTH; x++) {
+    //         dep.at<uint16_t>(y, x) = 200 + 4000 * x / WIDTH;
+    //     }
+    // }
 
     image_buffer_.push_back(std::make_pair(ros::Time::now(), rgb));
     depth_buffer_.push_back(std::make_pair(ros::Time::now(), dep));
@@ -55,8 +57,11 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
 
     exit_flag = 0;
 
-    fps_cnt_ = 0;
-    fps_ = 0;
+    detect_fps_cnt_ = 0;
+    mapping_fps_cnt_ = 0;
+    detect_fps_ = 0;
+    mapping_fps_ = 0;
+
     start_time_ = ros::Time::now().toSec();
 
     StartThread();
@@ -154,8 +159,8 @@ void YieldMap::prepareThread()
             mapping_data.frame_cnt_ = frame_cnt++;
             mapping_data.has_depth_ = true;
             mapping_data.init_time_ = init_time;
-            fps_cnt_++;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));    
+            detect_fps_cnt_++;
+            std::this_thread::sleep_for(std::chrono::milliseconds(detect_rate));    
 
             prepare2detect.send(mapping_data);
 
@@ -207,8 +212,10 @@ void YieldMap::trackThread()
         // cout << "end time: " << end_time_ << endl;
         if ( end_time_ - start_time_ > 1.0 )
         {
-            fps_ = fps_cnt_ / (end_time_ - start_time_);
-            fps_cnt_ = 0;
+            detect_fps_ = detect_fps_cnt_ / (end_time_ - start_time_);
+            mapping_fps_ = mapping_fps_cnt_ / (end_time_ - start_time_);
+            mapping_fps_cnt_ = 0;
+            detect_fps_cnt_ = 0;
             start_time_ = end_time_;
         }
 
@@ -302,9 +309,14 @@ void YieldMap::processThread()
             MappingData newest_data = mapping_data_buf_.back();
 
             if(newest_data.has_detection_)
+            {
                 measureProject(newest_data);
+                mapping_fps_cnt_++;
+            }
             else
+            {
                 newest_data.has_cloud_ = false;
+            }
 
             //if (newest_data.is_sight_)
             if (newest_data.is_stamp_ && newest_data.is_sight_)
@@ -343,7 +355,7 @@ void YieldMap::processThread()
             pubYieldMap(newest_data);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        std::this_thread::sleep_for(std::chrono::milliseconds(mapping_rate));
     }
 
     cout << "processThread exit" << endl;
@@ -658,15 +670,23 @@ void YieldMap::pubHConcat(MappingData &md)
     cv::hconcat(img, dep, concat);
 
 
-    // Draw FPS
-    if ( md.has_new_detection_ && fps_ )
+    // Draw Detect FPS
+    if ( md.has_new_detection_ && detect_fps_ )
     {
-        std::string fps_str = "FPS: " + std::to_string(fps_);
-        cv::putText(concat, fps_str, cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 10), 2);
+        std::string fps_str = "Detect FPS: " + std::to_string(detect_fps_);
+        cv::putText(concat, fps_str, cv::Point2f(400, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 10), 2);
     }
     else
     {
         cv::putText(concat, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
+    }
+
+
+    // Draw Mapping FPS
+    if ( md.has_new_detection_ && mapping_fps_ )
+    {
+        std::string fps_str = "Mapping FPS: " + std::to_string(mapping_fps_);
+        cv::putText(concat, fps_str, cv::Point2f(370, 80), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 10), 2);
     }
     
 

@@ -489,6 +489,8 @@ double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 
 double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 {
+
+    
     return 0.0;
 }
 

@@ -159,7 +159,7 @@ private:
     const double RAYCAST_DEPTH = 2.0;
     const double RAYCAST_BREADTH = 0.8;
     const double INTER_PARAM = 0.7;
-    const double STAMP_PARAM = 0.95;
+    const double STAMP_PARAM = 0.9;
 
     std::unique_ptr<Detector> detector_;
 

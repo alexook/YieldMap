@@ -35,7 +35,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
 
     image_buffer_.set_capacity(5);
     depth_buffer_.set_capacity(5);
-    mapping_data_buf_.set_capacity(10);
+    mapping_data_buf_.set_capacity(11);
     history_data_.set_capacity(3);
 
     cv::Mat rgb = cv::Mat::zeros(HEIGHT, WIDTH, CV_8UC3);
@@ -455,25 +455,25 @@ double YieldMap::measureDepth( cv::Mat depth_roi)
 
 double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 {
-    double distance = sqrt(pow(md1.center_.x() - md2.center_.x(), 2) + pow(md1.center_.y() - md2.center_.y(), 2));
-    double radius = RAYCAST_BREADTH;
+    // double distance = sqrt(pow(md1.sphere_.x() - md2.sphere_.x(), 2) + pow(md1.sphere_.y() - md2.sphere_.y(), 2));
+    // double radius = RAYCAST_BREADTH;
 
-    if ( distance > 2 * radius ) 
-    {
-        return 0;
-    }
+    // if ( distance > 2 * radius ) 
+    // {
+    //     return 0;
+    // }
 
-    if ( distance < 0.01 )
-    {
-        return 1.0;
-    }
+    // if ( distance < 0.01 )
+    // {
+    //     return 1.0;
+    // }
 
-    double inter_angle = 2 * acos((distance * distance) / (2 * radius * distance));
+    // double inter_angle = 2 * acos((distance * distance) / (2 * radius * distance));
 
-    double sector_area = 0.5 * inter_angle * radius * radius;
-    double triangle_area = 0.5 * radius * radius * sin(inter_angle);
+    // double sector_area = 0.5 * inter_angle * radius * radius;
+    // double triangle_area = 0.5 * radius * radius * sin(inter_angle);
 
-    return 2 * (sector_area - triangle_area) / (M_PI * radius * radius);
+    // return 2 * (sector_area - triangle_area) / (M_PI * radius * radius);
 
 }
 
@@ -498,7 +498,6 @@ double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 
     double intersect = M_PI / 12 * pow(2 * radius - distance, 2) * ( 4 * radius + distance);
 
-
     return intersect / (4 / 3 * M_PI * radius * radius);
 }
 
@@ -521,10 +520,10 @@ bool YieldMap::isInSight(MappingData &md)
 bool YieldMap::isInStamp(MappingData &md)
 {
     // MappingData his_data = history_data_[5];
-    if (mapping_data_buf_.size() < 5) 
+    if (mapping_data_buf_.size() < 11) 
         return false;
 
-    return measureInter(mapping_data_buf_[0], md) > STAMP_PARAM;
+    return measureSphereInter(mapping_data_buf_[0], md) > STAMP_PARAM;
 }
 
 bool YieldMap::isInMap(MappingData &md)
@@ -651,13 +650,13 @@ void YieldMap::pubSphreMarker( MappingData &md )
 
     if (md.is_stamp_)
     {
-        cameraposevisual.setImageBoundaryColor(0.2, 0.8, 0.2, 1);
-        cameraposevisual.setOpticalCenterConnectorColor(0.2, 0.8, 0.2, 1);
+        cameraposevisual.setImageBoundaryColor(77.0 / 255, 0.5, 230.0 / 255.0, 1);
+        cameraposevisual.setOpticalCenterConnectorColor(77.0 / 255, 0.5, 230.0 / 255.0, 1);
     }
     else
     {
-        cameraposevisual.setImageBoundaryColor(1, 0.15, 0, 1);
-        cameraposevisual.setOpticalCenterConnectorColor(1, 0.15, 0, 1);
+        cameraposevisual.setImageBoundaryColor(1, 77.0 / 225.0, 64 / 255.0, 1);
+        cameraposevisual.setOpticalCenterConnectorColor(1, 77.0 / 225.0, 64 / 255.0, 1);
 
     }
 
@@ -761,18 +760,18 @@ void YieldMap::pubHConcat(MappingData &md)
     
 
     if (md.is_sight_)
-        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {230, 128, 77}, 3, 8);
     else if(md.has_detection_)
-        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {0, 0, 255}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {64, 77, 255}, 3, 8);
 
 
     if(md.is_stamp_)
     {
-        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 255, 0}, 3, 8);
+        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {230, 128, 77}, 3, 8);
     }
     else
     {
-        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
+        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {64, 77, 255}, 3, 8);
     }
 
     pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());

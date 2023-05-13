@@ -181,7 +181,7 @@ void YieldMap::detectThread()
         std::vector<bbox_t> result_boxes;
 
         if (image_ptr)
-            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.6, true);
+            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.5, true);
         
         mapping_data.result_boxes_ = result_boxes;
         detect2track.send(mapping_data);

@@ -48,7 +48,7 @@
 #include "yolo_v2_class.hpp"
 
 #include "utility.h"
-
+#include "CameraPoseVisualization.h"
 
 using namespace std;
 
@@ -176,6 +176,8 @@ private:
     ros::Publisher pub_rviz_click_;
     ros::Subscriber sub_rviz_click_;
 
+    ros::Publisher pub_camera_pose_visual_;
+
     ros::Subscriber sub_image_;
     ros::Subscriber sub_depth_;
     // typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> SyncPolicyImageDepth;
@@ -206,15 +208,5 @@ private:
     std::thread prepare_thread, detect_thread, track_thread, process_thread;
     utility::SyncedDataExchange<MappingData> prepare2detect, detect2track;
 
-
-    // std::vector<Eigen::Vector3d> proj_pts_;
-    // std::vector<Eigen::Vector3d> margin_proj_pts_;
-    // std::vector<Eigen::Vector3d> margin_detected_pts_;
-
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr margin_proj_pts_;
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr margin_detected_pts_;
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
-
-    // int proj_points_cnt_;
 };
 

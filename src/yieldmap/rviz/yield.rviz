@@ -7,8 +7,8 @@ Panels:
         - /Global Options1
         - /Status1
         - /Image1
+        - /TF1
         - /TF1/Frames1
-        - /PointCloud1
         - /PointCloud3/Autocompute Value Bounds1
         - /PointCloud21
         - /PointCloud21/Autocompute Value Bounds1
@@ -75,15 +75,15 @@ Visualization Manager:
       Frames:
         All Enabled: false
         body:
-          Value: true
+          Value: false
         camera:
           Value: false
         world:
           Value: true
       Marker Alpha: 1
-      Marker Scale: 1
+      Marker Scale: 2
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
@@ -249,6 +249,14 @@ Visualization Manager:
       Transport Hint: raw
       Unreliable: false
       Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /yieldmap/camera_pose_visual
+      Name: MarkerArray
+      Namespaces:
+        CameraPoseVisualization: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
@@ -277,7 +285,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 3.175051689147949
+      Distance: 2.9449496269226074
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -293,9 +301,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6190767884254456
+      Pitch: 0.15907743573188782
       Target Frame: <Fixed Frame>
-      Yaw: 3.025627613067627
+      Yaw: 1.7269395589828491
     Saved: ~
 Window Geometry:
   Displays:

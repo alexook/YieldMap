@@ -39,5 +39,6 @@ ${Boost_INCLUDE_DIRS}
 
 add_executable(yield src/yield_node.cpp
                       src/yield_map.cpp
+                      src/CameraPoseVisualization.cpp
               )
 target_link_libraries(yield darknet ${OpenCV_LIBRARIES} Threads::Threads ${catkin_LIBRARIES})

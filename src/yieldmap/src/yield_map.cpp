@@ -7,6 +7,8 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     pub_hconcat_ = node_.advertise<sensor_msgs::Image>("/yieldmap/hconcat", 1);
     pub_marker_ = node_.advertise<visualization_msgs::Marker>("/yieldmap/marker", 1);
     pub_rviz_click_ = node_.advertise<sensor_msgs::Image>("/yieldmap/rviz_res", 1);
+    pub_camera_pose_visual_ = node_.advertise<visualization_msgs::MarkerArray>("/yieldmap/camera_pose_visual", 1);    
+    
     sub_rviz_click_ = node_.subscribe("/clicked_point", 1, &YieldMap::rvizClickCallback, this);
 
     sub_image_ = node_.subscribe("/camera/color/image_raw/compressed", 50, &YieldMap::imageCallback, this);
@@ -618,11 +620,43 @@ void YieldMap::pubCubeMarker( MappingData &md )
 
 void YieldMap::pubSphreMarker( MappingData &md )
 {
+    // ros header
+    std_msgs::Header header;
+    header.stamp = ros::Time::now();
+    header.frame_id = "world";
+    
+    static CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
+    cameraposevisual.setScale(0.1);
+    cameraposevisual.setLineWidth(0.01);
+    tf::Quaternion Rbc;
+    Rbc.setRPY(-M_PI / 2, 0, -M_PI / 2);
 
-     visualization_msgs::Marker marker;
+
+    tf::Vector3 P = md.body2world_ * tf::Vector3(-0.1, 0, 0);
+    tf::Quaternion R = md.body2world_.getRotation() * Rbc;
+
+    if (md.is_stamp_)
+    {
+        cameraposevisual.setImageBoundaryColor(0.2, 0.8, 0.2, 1);
+        cameraposevisual.setOpticalCenterConnectorColor(0.2, 0.8, 0.2, 1);
+    }
+    else
+    {
+        cameraposevisual.setImageBoundaryColor(1, 0.15, 0, 1);
+        cameraposevisual.setOpticalCenterConnectorColor(1, 0.15, 0, 1);
+
+    }
+
+    cameraposevisual.reset();
+    cameraposevisual.add_pose(Eigen::Vector3d(P.x(), P.y(), P.z()), Eigen::Quaterniond(R.w(), R.x(), R.y(), R.z()));
+    cameraposevisual.publish_by(pub_camera_pose_visual_, header);
+
+    /*
+        Publish Sphere
+    */
+    visualization_msgs::Marker marker;
     marker.type = visualization_msgs::Marker::SPHERE;
-    marker.header.frame_id = "world";
-    marker.header.stamp = ros::Time::now();
+    marker.header = header;
     marker.scale.x = 1.6;
     marker.scale.y = 1.6;
     marker.scale.z = 1.6;
@@ -635,7 +669,6 @@ void YieldMap::pubSphreMarker( MappingData &md )
     marker.color.b = 88.0 / 255.0;
     marker.color.a = 0.25;
 
-    // 发布marker
     pub_marker_.publish(marker);
 }
 

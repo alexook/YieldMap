@@ -55,7 +55,6 @@ using namespace std;
 
 struct MappingData
 {
-
     // camera position and pose data
     tf::StampedTransform body2world_;
     tf::StampedTransform camera2body_;
@@ -73,7 +72,7 @@ struct MappingData
     Eigen::Vector2d center_;
     Eigen::Vector2d p1_, p2_, p3_, p4_;
 
-    // project depth image
+    // project depth data
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
 
     // time stamp
@@ -125,6 +124,9 @@ private:
     void imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &image_input, const sensor_msgs::ImageConstPtr &depth_input);
     void rvizClickCallback(const geometry_msgs::PointStampedConstPtr &click_point);
 
+    void imageCallback(const sensor_msgs::CompressedImageConstPtr &image_input);
+    void depthCallback(const sensor_msgs::ImageConstPtr &depth_input);
+
     string names_file;
     string cfg_file;
     string weights_file;
@@ -150,6 +152,8 @@ private:
 
     const double RAYCAST_DEPTH = 2.0;
     const double RAYCAST_BREADTH = 0.8;
+    const double INTER_PARAM = 0.7;
+    const double STAMP_PARAM = 0.95;
 
     std::unique_ptr<Detector> detector_;
 
@@ -168,12 +172,14 @@ private:
     ros::Publisher pub_rviz_click_;
     ros::Subscriber sub_rviz_click_;
 
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> SyncPolicyImageDepth;
-    typedef shared_ptr<message_filters::Synchronizer<SyncPolicyImageDepth>> SynchronizerImageDepth;
+    ros::Subscriber sub_image_;
+    ros::Subscriber sub_depth_;
+    // typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> SyncPolicyImageDepth;
+    // typedef shared_ptr<message_filters::Synchronizer<SyncPolicyImageDepth>> SynchronizerImageDepth;
 
-    shared_ptr<message_filters::Subscriber<sensor_msgs::Image>> sub_depth_;
-    shared_ptr<message_filters::Subscriber<sensor_msgs::CompressedImage>> sub_image_;
-    SynchronizerImageDepth sync_image_depth_;
+    // shared_ptr<message_filters::Subscriber<sensor_msgs::Image>> sub_depth_;
+    // shared_ptr<message_filters::Subscriber<sensor_msgs::CompressedImage>> sub_image_;
+    // SynchronizerImageDepth sync_image_depth_;
 
 
     boost::circular_buffer<std::pair<ros::Time, cv::Mat>> image_buffer_;
@@ -191,7 +197,7 @@ private:
 
     std::atomic<bool> exit_flag;
 
-    std::thread thread_prepare, thread_detect, thread_track, thread_precess;
+    std::thread prepare_thread, detect_thread, track_thread, process_thread;
     utility::SyncedDataExchange<MappingData> prepare2detect, detect2track;
 
 

@@ -7,11 +7,7 @@ int main(int argc, char *argv[])
 
     YieldMap yield(nh);
 
-    ros::Rate rate(10);
-    while (ros::ok())
-    {
-        ros::spinOnce();
-        rate.sleep();
-    }
+    while (ros::ok()) ros::spin();
+
     return 0;
 }

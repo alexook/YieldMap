@@ -9,17 +9,19 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     pub_rviz_click_ = node_.advertise<sensor_msgs::Image>("/yieldmap/rviz_res", 1);
     sub_rviz_click_ = node_.subscribe("/clicked_point", 1, &YieldMap::rvizClickCallback, this);
 
-    sub_image_.reset(new message_filters::Subscriber<sensor_msgs::CompressedImage>(node_, "/camera/color/image_raw/compressed", 10));
-    sub_depth_.reset(new message_filters::Subscriber<sensor_msgs::Image>(node_, "/camera/aligned_depth_to_color/image_raw", 10));
-    sync_image_depth_.reset(new message_filters::Synchronizer<SyncPolicyImageDepth>( SyncPolicyImageDepth(10), *sub_image_, *sub_depth_));
+    sub_image_ = node_.subscribe("/camera/color/image_raw/compressed", 50, &YieldMap::imageCallback, this);
+    sub_depth_ = node_.subscribe("/camera/aligned_depth_to_color/image_raw", 50, &YieldMap::depthCallback, this);
+    // sub_image_.reset(new message_filters::Subscriber<sensor_msgs::CompressedImage>(node_, "/camera/color/image_raw/compressed", 10));
+    // sub_depth_.reset(new message_filters::Subscriber<sensor_msgs::Image>(node_, "/camera/aligned_depth_to_color/image_raw", 10));
+    // sync_image_depth_.reset(new message_filters::Synchronizer<SyncPolicyImageDepth>( SyncPolicyImageDepth(10), *sub_image_, *sub_depth_));
     
-    sync_image_depth_->registerCallback(boost::bind(&YieldMap::imageDepthCallback, this, _1, _2));
+    // sync_image_depth_->registerCallback(boost::bind(&YieldMap::imageDepthCallback, this, _1, _2));
 
 
     //node_.param<string>("names_file", names_file, "apple.names");
     node_.param<string>("cfg_file", cfg_file, "cfg/yolov7-tiny.cfg");
     node_.param<string>("weights_file", weights_file, "model/yolov7-tiny_final.weights");
-    node_.param<double>("thresh", thresh, 0.5);
+    node_.param<double>("thresh", thresh, 0.65);
 
     detector_ = std::unique_ptr<Detector>(new Detector(cfg_file, weights_file));
 
@@ -64,19 +66,18 @@ YieldMap::~YieldMap()
 {
     cout << "YieldMap destructor called" << endl;
     exit_flag = true;
-    if (thread_prepare.joinable())  thread_prepare.join();
-    if (thread_detect.joinable())   thread_detect.join();
-    if (thread_track.joinable())    thread_track.join();
-    if (thread_precess.joinable())  thread_precess.join();
-
+    if (prepare_thread.joinable())  prepare_thread.join();
+    if (detect_thread.joinable())   detect_thread.join();
+    if (track_thread.joinable())    track_thread.join();
+    if (process_thread.joinable())  process_thread.join();
 }
 
 void YieldMap::StartThread()
 {
-    thread_prepare = std::thread(&YieldMap::prepareThread, this);
-    thread_detect = std::thread(&YieldMap::detectThread, this);
-    thread_track = std::thread(&YieldMap::trackThread, this);
-    thread_precess = std::thread(&YieldMap::processThread, this);
+    prepare_thread = std::thread(&YieldMap::prepareThread, this);
+    detect_thread = std::thread(&YieldMap::detectThread, this);
+    track_thread = std::thread(&YieldMap::trackThread, this);
+    process_thread = std::thread(&YieldMap::processThread, this);
 }
 
 void YieldMap::prepareThread()
@@ -138,8 +139,8 @@ void YieldMap::prepareThread()
         {
             std::shared_ptr<image_t> image_ptr;
             cv::Mat depth_draw;
-            cv::Mat image_raw = image_buffer_.back().second;
-            cv::Mat depth_raw = depth_buffer_.back().second;
+            cv::Mat image_raw = image_buffer_[0].second;
+            cv::Mat depth_raw = depth_buffer_[0].second;
             double init_time = image_buffer_.back().first.toSec();
             depth_raw.convertTo(depth_draw, CV_8U, 255.0/4095.0);
             cv::applyColorMap(depth_draw, depth_draw, cv::COLORMAP_TURBO);
@@ -342,7 +343,7 @@ void YieldMap::processThread()
             pubYieldMap(newest_data);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
     }
 
     cout << "processThread exit" << endl;
@@ -494,7 +495,7 @@ bool YieldMap::isInStamp(MappingData &md)
     if (mapping_data_buf_.size() < 5) 
         return false;
 
-    return measureInter(mapping_data_buf_[0], md) > 0.95;
+    return measureInter(mapping_data_buf_[0], md) > STAMP_PARAM;
 
 }
 
@@ -510,7 +511,7 @@ bool YieldMap::isInMap(MappingData &md)
 
 bool YieldMap::isInter(MappingData &md1, MappingData &md2)
 {
-    return (measureInter(md1, md2)) > 0.7;
+    return (measureInter(md1, md2)) > INTER_PARAM;
 }
 
 void YieldMap::pubMarker( MappingData &md )
@@ -752,6 +753,30 @@ void YieldMap::imageDepthCallback(const sensor_msgs::CompressedImageConstPtr &im
 
 
     image_buffer_.push_back(std::make_pair(stamp, image));
+    depth_buffer_.push_back(std::make_pair(stamp, depth));
+
+}
+
+void YieldMap::imageCallback(const sensor_msgs::CompressedImageConstPtr &image_input)
+{
+    // ros::Time stamp = image_ptr->header.stamp;
+    ros::Time stamp = ros::Time::now();
+    
+    cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::BGR8);
+    cv::Mat image = image_ptr->image;
+
+    image_buffer_.push_back(std::make_pair(stamp, image));
+
+}
+
+void YieldMap::depthCallback(const sensor_msgs::ImageConstPtr &depth_input)
+{
+    // ros::Time stamp = image_ptr->header.stamp;
+    ros::Time stamp = ros::Time::now();
+    
+    cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_input, sensor_msgs::image_encodings::TYPE_16UC1);
+    cv::Mat depth = depth_ptr->image;
+
     depth_buffer_.push_back(std::make_pair(stamp, depth));
 
 }

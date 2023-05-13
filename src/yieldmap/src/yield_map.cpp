@@ -125,6 +125,7 @@ void YieldMap::prepareThread()
             mapping_data.p3_ = Eigen::Vector2d(p3.x(), p3.y());
             mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
             mapping_data.center_ = Eigen::Vector2d(x.x(), x.y());
+            mapping_data.sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
 
             mapping_data.body2world_ = body2world;
             mapping_data.camera2body_ = camera2body;
@@ -339,19 +340,6 @@ void YieldMap::processThread()
 
             }
 
-            // 遍历 mapping_data_list_ 将measureInter() > 0.5 的元素删除
-            // for (auto iter = mapping_data_list_.begin(); iter != mapping_data_list_.end();)
-            // {
-            //     if (measureInter(newest_data, *iter) > 0.7)
-            //     {
-            //         iter = mapping_data_list_.erase(iter);
-            //     }
-            //     else
-            //     {
-            //         ++iter;
-            //     }
-            // }
-
             // cout mapping_data_list_ size
             cout << "mapping_data_list_ size: " << mapping_data_list_.size() << endl;
             pubYieldMap(newest_data);
@@ -470,14 +458,16 @@ double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
     double distance = sqrt(pow(md1.center_.x() - md2.center_.x(), 2) + pow(md1.center_.y() - md2.center_.y(), 2));
     double radius = RAYCAST_BREADTH;
 
-    if ( distance > 2 * radius ) {
+    if ( distance > 2 * radius ) 
+    {
         return 0;
     }
 
-    if (distance < 0.01 )
+    if ( distance < 0.01 )
     {
         return 1.0;
     }
+
     double inter_angle = 2 * acos((distance * distance) / (2 * radius * distance));
 
     double sector_area = 0.5 * inter_angle * radius * radius;
@@ -490,8 +480,26 @@ double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 {
 
-    
-    return 0.0;
+    double distance = sqrt(pow(md1.sphere_.x() - md2.sphere_.x(), 2) + 
+                            pow(md1.sphere_.y() - md2.sphere_.y(), 2) + 
+                            pow(md1.sphere_.z() - md2.sphere_.z(), 2));
+
+    double radius = RAYCAST_BREADTH;
+
+    if ( distance > 2 * radius ) 
+    {
+        return 0;
+    }
+
+    if ( distance < 0.01 )
+    {
+        return 1.0;
+    }
+
+    double intersect = M_PI / 12 * pow(2 * radius - distance, 2) * ( 4 * radius + distance);
+
+
+    return intersect / (4 / 3 * M_PI * radius * radius);
 }
 
 bool YieldMap::isInSight(MappingData &md)
@@ -517,7 +525,6 @@ bool YieldMap::isInStamp(MappingData &md)
         return false;
 
     return measureInter(mapping_data_buf_[0], md) > STAMP_PARAM;
-
 }
 
 bool YieldMap::isInMap(MappingData &md)
@@ -532,7 +539,7 @@ bool YieldMap::isInMap(MappingData &md)
 
 bool YieldMap::isInter(MappingData &md1, MappingData &md2)
 {
-    return (measureInter(md1, md2)) > INTER_PARAM;
+    return (measureSphereInter(md1, md2)) > INTER_PARAM;
 }
 
 void YieldMap::pubMarker( MappingData &md )
@@ -608,9 +615,9 @@ void YieldMap::pubCubeMarker( MappingData &md )
     marker.scale.x = 1.0;
     marker.scale.y = 1.0;
     marker.scale.z = 1.0;
-    marker.pose.position.x = md.center_.x();
-    marker.pose.position.y = md.center_.y();
-    marker.pose.position.z = 0.8;
+    marker.pose.position.x = md.sphere_.x();
+    marker.pose.position.y = md.sphere_.y();
+    marker.pose.position.z = md.sphere_.z();
 
     marker.pose.orientation.x = md.body2world_.getRotation().x();
     marker.pose.orientation.y = md.body2world_.getRotation().y();
@@ -667,9 +674,9 @@ void YieldMap::pubSphreMarker( MappingData &md )
     marker.scale.x = 1.6;
     marker.scale.y = 1.6;
     marker.scale.z = 1.6;
-    marker.pose.position.x = md.center_.x();
-    marker.pose.position.y = md.center_.y();
-    marker.pose.position.z = md.body2world_.getOrigin().z();
+    marker.pose.position.x = md.sphere_.x();
+    marker.pose.position.y = md.sphere_.y();
+    marker.pose.position.z = md.sphere_.z();
 
     marker.color.r = 88.0 / 255.0;
     marker.color.g = 88.0 / 255.0;

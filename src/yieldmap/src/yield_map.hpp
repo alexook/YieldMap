@@ -70,6 +70,7 @@ struct MappingData
 
     // raycasting
     Eigen::Vector2d center_;
+    Eigen::Vector3d sphere_;
     Eigen::Vector2d p1_, p2_, p3_, p4_;
 
     // project depth data

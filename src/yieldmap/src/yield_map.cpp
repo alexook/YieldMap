@@ -633,7 +633,7 @@ void YieldMap::pubSphreMarker( MappingData &md )
     marker.color.r = 88.0 / 255.0;
     marker.color.g = 88.0 / 255.0;
     marker.color.b = 88.0 / 255.0;
-    marker.color.a = 0.3;
+    marker.color.a = 0.25;
 
     // 发布marker
     pub_marker_.publish(marker);

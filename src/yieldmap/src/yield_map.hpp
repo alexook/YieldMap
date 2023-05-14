@@ -31,6 +31,8 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/voxel_grid.h>
+
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -73,11 +75,14 @@ struct MappingData
 
     // raycasting
     // Eigen::Vector2d center_;
-    Eigen::Vector3d sphere_;
+    Eigen::Vector3d raycasting_sphere_;
     Eigen::Vector2d p1_, p2_, p3_, p4_;
 
     // project depth data
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
+    Eigen::Vector3d proj_sphere_;
+    double proj_sphere_radius_;
+
 
     // time stamp
     double init_time_;
@@ -109,6 +114,7 @@ private:
     double measureDepth( cv::Mat depth_roi );
     double measureInter( MappingData &md1, MappingData &md2 );
     double measureSphereInter( MappingData &md1, MappingData &md2 );
+    double measureSphereInter2( MappingData &md1, MappingData &md2 );
     Eigen::Vector2d measureCrosshair(MappingData &md);
 
     bool isInSight( MappingData &md );

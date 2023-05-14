@@ -126,7 +126,7 @@ void YieldMap::prepareThread()
             mapping_data.p3_ = Eigen::Vector2d(p3.x(), p3.y());
             mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
             // mapping_data.center_ = Eigen::Vector2d(x.x(), x.y());
-            mapping_data.sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
+            mapping_data.raycasting_sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
 
             mapping_data.body2world_ = body2world;
             mapping_data.camera2body_ = camera2body;
@@ -375,7 +375,10 @@ void YieldMap::measureProject(MappingData &md)
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_in(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_out(new pcl::PointCloud<pcl::PointXYZ>);
 
-    pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZ> fil;
+    pcl::VoxelGrid<pcl::PointXYZ> sor;
+
+
     int proj_points_cnt_ = 0;
 
     for (int v = DEPTH_MARGIN_Y; v < ROWS - DEPTH_MARGIN_Y; v += SKIP_PIXEL)
@@ -401,13 +404,19 @@ void YieldMap::measureProject(MappingData &md)
 
     }
 
-    sor.setInputCloud(proj_pts_in);
-    sor.setMeanK(50);
-    sor.setStddevMulThresh(1.0);
-    sor.filter(*proj_pts_out);
-    md.proj_pts_ = proj_pts_out;
+    fil.setInputCloud(proj_pts_in);
+    fil.setMeanK(50);
+    fil.setStddevMulThresh(1.0);
+    fil.filter(*proj_pts_out);
+
+    sor.setInputCloud(proj_pts_out);
+    sor.setLeafSize(0.04f, 0.04f, 0.04f);
+    sor.filter(*proj_pts_in);
+
+
+    md.proj_pts_ = proj_pts_in;
     md.has_cloud_ = true;
-    // ROS_WARN("proj_points_cnt = %d", proj_points_cnt_);
+    ROS_WARN("proj_points_cnt = %d", proj_pts_in->size());
     
 }
 
@@ -468,7 +477,7 @@ double YieldMap::measureDepth( cv::Mat depth_roi)
 
 double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 {
-    // double distance = sqrt(pow(md1.sphere_.x() - md2.sphere_.x(), 2) + pow(md1.sphere_.y() - md2.sphere_.y(), 2));
+    // double distance = sqrt(pow(md1.raycasting_sphere_.x() - md2.raycasting_sphere_.x(), 2) + pow(md1.raycasting_sphere_.y() - md2.raycasting_sphere_.y(), 2));
     // double radius = RAYCAST_BREADTH;
 
     // if ( distance > 2 * radius ) 
@@ -493,9 +502,9 @@ double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 {
 
-    double distance = sqrt(pow(md1.sphere_.x() - md2.sphere_.x(), 2) + 
-                            pow(md1.sphere_.y() - md2.sphere_.y(), 2) + 
-                            pow(md1.sphere_.z() - md2.sphere_.z(), 2));
+    double distance = sqrt(pow(md1.raycasting_sphere_.x() - md2.raycasting_sphere_.x(), 2) + 
+                            pow(md1.raycasting_sphere_.y() - md2.raycasting_sphere_.y(), 2) + 
+                            pow(md1.raycasting_sphere_.z() - md2.raycasting_sphere_.z(), 2));
 
     double radius = RAYCAST_BREADTH;
 
@@ -512,6 +521,35 @@ double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
     double intersect = M_PI / 12 * pow(2 * radius - distance, 2) * ( 4 * radius + distance);
 
     return intersect / (4 / 3 * M_PI * radius * radius);
+}
+
+double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
+{
+
+    double d = sqrt(pow(md1.proj_sphere_.x() - md2.proj_sphere_.x(), 2) + 
+                            pow(md1.proj_sphere_.y() - md2.proj_sphere_.y(), 2) + 
+                            pow(md1.proj_sphere_.z() - md2.proj_sphere_.z(), 2));
+
+    double r1 = md1.proj_sphere_radius_;
+    double r2 = md2.proj_sphere_radius_;
+
+
+    if ( d >  r1 + r2 )
+    {
+        return 0;
+    }
+
+    if ( d < abs(r1 - r2) )
+    {
+        return 1.0;
+    }
+
+    double h1 = r1 - (r1 * r1 - r2 * r2 + d * d);
+    double h2 = r2 - (r2 * r2 - r1 * r1 + d * d);
+
+    double V_inter = M_PI / 3 * h1 * h1 * (3 * r1 - h1) + M_PI / 3 * h2 * h2 * (3 * r2 - h2);
+
+    return V_inter / (4 / 3 * M_PI * r1 * r1) + (4 / 3 * M_PI * r2 * r2) - V_inter;
 }
 
 Eigen::Vector2d YieldMap::measureCrosshair(MappingData &md)
@@ -631,9 +669,9 @@ void YieldMap::pubCubeMarker( MappingData &md )
     marker.scale.x = 1.0;
     marker.scale.y = 1.0;
     marker.scale.z = 1.0;
-    marker.pose.position.x = md.sphere_.x();
-    marker.pose.position.y = md.sphere_.y();
-    marker.pose.position.z = md.sphere_.z();
+    marker.pose.position.x = md.raycasting_sphere_.x();
+    marker.pose.position.y = md.raycasting_sphere_.y();
+    marker.pose.position.z = md.raycasting_sphere_.z();
 
     marker.pose.orientation.x = md.body2world_.getRotation().x();
     marker.pose.orientation.y = md.body2world_.getRotation().y();
@@ -650,7 +688,6 @@ void YieldMap::pubCubeMarker( MappingData &md )
 
 void YieldMap::pubSphreMarker( MappingData &md )
 {
-
 
     /*
         Publish Camera pose viusal
@@ -685,7 +722,6 @@ void YieldMap::pubSphreMarker( MappingData &md )
     cameraposevisual.publish_by(pub_camera_pose_visual_, header);
 
 
-
     /*
         Publish Current Sphere
     */
@@ -695,9 +731,9 @@ void YieldMap::pubSphreMarker( MappingData &md )
     marker.scale.x = 1.6;
     marker.scale.y = 1.6;
     marker.scale.z = 1.6;
-    marker.pose.position.x = md.sphere_.x();
-    marker.pose.position.y = md.sphere_.y();
-    marker.pose.position.z = md.sphere_.z();
+    marker.pose.position.x = md.raycasting_sphere_.x();
+    marker.pose.position.y = md.raycasting_sphere_.y();
+    marker.pose.position.z = md.raycasting_sphere_.z();
 
     marker.color.r = 88.0 / 255.0;
     marker.color.g = 88.0 / 255.0;
@@ -705,9 +741,6 @@ void YieldMap::pubSphreMarker( MappingData &md )
     marker.color.a = 0.25;
 
     pub_marker_.publish(marker);
-
-
-
 
 }
 
@@ -788,7 +821,6 @@ void YieldMap::pubHConcat(MappingData &md)
     // Draw Crosshair
     if (md.crosshair_.x() > 0 && md.crosshair_.y() > 0)
     {
-        // cv::circle(concat, cv::Point2f(md.crosshair_.x(), md.crosshair_.y()), 5, cv::Scalar(0, 0, 255), 2);
         cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(255, 0, 0), 2);
         cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(255, 0, 0), 2);
         cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(255, 0, 255), 2, 16);
@@ -878,9 +910,9 @@ void YieldMap::pubYieldMap(MappingData &md)
         marker.scale.x = 1.6;
         marker.scale.y = 1.6;
         marker.scale.z = 1.6;
-        marker.pose.position.x = m.sphere_.x();
-        marker.pose.position.y = m.sphere_.y();
-        marker.pose.position.z = m.sphere_.z();
+        marker.pose.position.x = m.raycasting_sphere_.x();
+        marker.pose.position.y = m.raycasting_sphere_.y();
+        marker.pose.position.z = m.raycasting_sphere_.z();
 
         marker.color.r = 1;
         marker.color.g = 0;
@@ -957,15 +989,15 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
 
     for (auto &m : mapping_data_list_)
     {
-        if ( sqrt( pow( x - m.sphere_.x(), 2 ) + pow( y - m.sphere_.y(), 2 ))  < RAYCAST_BREADTH )
+        if ( sqrt( pow( x - m.raycasting_sphere_.x(), 2 ) + pow( y - m.raycasting_sphere_.y(), 2 ))  < RAYCAST_BREADTH )
         {
             ROS_WARN("Clicked point has target: %f, %f", x, y);
             
             fruit_cnt += to_string(m.depth_boxes_.size());
-            string str = to_string(m.sphere_.x());
+            string str = to_string(m.raycasting_sphere_.x());
             str = str.substr(0, str.find('.') + 3);
             fruit_loca += str + ", ";
-            str = to_string(m.sphere_.y());
+            str = to_string(m.raycasting_sphere_.y());
             str = str.substr(0, str.find('.') + 3);
             fruit_loca += str + " )";
 

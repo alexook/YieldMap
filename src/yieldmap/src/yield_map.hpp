@@ -69,7 +69,7 @@ struct MappingData
     std::vector<pair<double, bbox_t>> depth_boxes_;
 
     // raycasting
-    Eigen::Vector2d center_;
+    // Eigen::Vector2d center_;
     Eigen::Vector3d sphere_;
     Eigen::Vector2d p1_, p2_, p3_, p4_;
 
@@ -138,7 +138,7 @@ private:
     int detect_rate;
     int mapping_rate;
 
-    const int SKIP_PIXEL = 4;
+    const int SKIP_PIXEL = 6;
     const int DEPTH_MARGIN_X = 32;
     const int DEPTH_MARGIN_Y = 32;
 

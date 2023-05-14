@@ -124,7 +124,7 @@ void YieldMap::prepareThread()
             mapping_data.p2_ = Eigen::Vector2d(p2.x(), p2.y());
             mapping_data.p3_ = Eigen::Vector2d(p3.x(), p3.y());
             mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
-            mapping_data.center_ = Eigen::Vector2d(x.x(), x.y());
+            // mapping_data.center_ = Eigen::Vector2d(x.x(), x.y());
             mapping_data.sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
 
             mapping_data.body2world_ = body2world;
@@ -881,15 +881,15 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
 
     for (auto &m : mapping_data_list_)
     {
-        if ( sqrt( pow( x - m.center_.x(), 2 ) + pow( y - m.center_.y(), 2 ))  < RAYCAST_BREADTH )
+        if ( sqrt( pow( x - m.sphere_.x(), 2 ) + pow( y - m.sphere_.y(), 2 ))  < RAYCAST_BREADTH )
         {
             ROS_WARN("Clicked point has target: %f, %f", x, y);
             
             fruit_cnt += to_string(m.depth_boxes_.size());
-            string str = to_string(m.center_.x());
+            string str = to_string(m.sphere_.x());
             str = str.substr(0, str.find('.') + 3);
             fruit_loca += str + ", ";
-            str = to_string(m.center_.y());
+            str = to_string(m.sphere_.y());
             str = str.substr(0, str.find('.') + 3);
             fruit_loca += str + " )";
 

@@ -35,7 +35,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
 
     image_buffer_.set_capacity(5);
     depth_buffer_.set_capacity(5);
-    mapping_data_buf_.set_capacity(11);
+    mapping_data_buf_.set_capacity(MAPPING_BUFFER_SIZE);
     history_data_.set_capacity(3);
 
     cv::Mat rgb = cv::Mat::zeros(HEIGHT, WIDTH, CV_8UC3);
@@ -280,8 +280,20 @@ void YieldMap::trackThread()
 
         mapping_data.result_boxes_ = result_boxes;
         mapping_data.depth_boxes_ = depth_boxes;
-        mapping_data.has_detection_ = depth_boxes.size() > 0 ? true : false;
-        mapping_data.is_sight_ = isInSight(mapping_data);
+
+        if (depth_boxes.size() > 0) 
+        {
+            mapping_data.has_detection_ = true;
+            mapping_data.crosshair_ = measureCrosshair(mapping_data);
+            mapping_data.is_sight_ = isInSight(mapping_data);
+        }
+        else
+        {
+            mapping_data.has_detection_ = false;
+            mapping_data.crosshair_ = Eigen::Vector2d(0, 0);
+            mapping_data.is_sight_ = false;
+        }
+
         mapping_data.is_stamp_ = isInStamp(mapping_data);
         mapping_data.update_time_ = ros::Time::now().toSec();
         mapping_data.has_new_detection_ = mapping_data.update_time_ - mapping_data.init_time_ < 1.0 ? true : false;
@@ -501,26 +513,53 @@ double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
     return intersect / (4 / 3 * M_PI * radius * radius);
 }
 
+Eigen::Vector2d YieldMap::measureCrosshair(MappingData &md)
+{
+    int sum_x = 0;
+    int sum_y = 0;
+    int cnt = md.depth_boxes_.size();
+
+    for (auto &v : md.depth_boxes_)
+    {
+        sum_x += v.second.x + v.second.w / 2;
+        sum_y += v.second.y + v.second.h / 2;
+    }
+
+    return Eigen::Vector2d(sum_x / cnt, sum_y / cnt);
+}
+
 bool YieldMap::isInSight(MappingData &md)
 {
-    int sum = 0;
     int cnt = md.depth_boxes_.size();
 
     if (cnt == 0)
         return false;
 
-    for (auto &v : md.depth_boxes_)
-    {
-        sum += v.second.x + v.second.w / 2;
-    }
+    
+    // Eigen::Vector2d cross = measureCrosshair(md);
 
-    return abs(sum / cnt - WIDTH / 2) < 60;
+    return abs(md.crosshair_.x() - WIDTH / 2) < 60;
+    // int sum_x = 0;
+    // int sum_y = 0;
+    // int cnt = md.depth_boxes_.size();
+
+    // if (cnt == 0)
+    //     return false;
+
+    // for (auto &v : md.depth_boxes_)
+    // {
+    //     sum_x += v.second.x + v.second.w / 2;
+    //     sum_y += v.second.y + v.second.h / 2;
+    // }
+
+    // return abs(sum_x / cnt - WIDTH / 2) < 60 && abs(sum_y / cnt - HEIGHT / 2) < 60;
+
 }
 
 bool YieldMap::isInStamp(MappingData &md)
 {
     // MappingData his_data = history_data_[5];
-    if (mapping_data_buf_.size() < 11) 
+    if (mapping_data_buf_.size() < MAPPING_BUFFER_SIZE) 
         return false;
 
     return measureSphereInter(mapping_data_buf_[0], md) > STAMP_PARAM;
@@ -759,10 +798,25 @@ void YieldMap::pubHConcat(MappingData &md)
     }
     
 
+    // Draw Crosshair
+    if (md.crosshair_.x() > 0 && md.crosshair_.y() > 0)
+    {
+        // cv::circle(concat, cv::Point2f(md.crosshair_.x(), md.crosshair_.y()), 5, cv::Scalar(0, 0, 255), 2);
+        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(255, 0, 0), 2);
+        cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(255, 0, 0), 2);
+        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(0, 0, 0), 2);
+
+
+    }
+
+
+
+    // Draw crosshair region box
     if (md.is_sight_)
-        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {230, 128, 77}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 60 + WIDTH, HEIGHT / 2 - 60, 120, 120), {230, 128, 77}, 3, 8);
     else if(md.has_detection_)
-        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 40 + WIDTH, 60, 60, HEIGHT - 60 * 2), {64, 77, 255}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 60 + WIDTH, HEIGHT / 2 - 60, 120, 120), {64, 77, 255}, 3, 8);
+
 
 
     if(md.is_stamp_)
@@ -907,4 +961,3 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
 
     }
 }
-

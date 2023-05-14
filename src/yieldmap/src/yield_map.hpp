@@ -68,6 +68,9 @@ struct MappingData
     std::vector<bbox_t> result_boxes_;
     std::vector<pair<double, bbox_t>> depth_boxes_;
 
+    // crosshair
+    Eigen::Vector2d crosshair_;
+
     // raycasting
     // Eigen::Vector2d center_;
     Eigen::Vector3d sphere_;
@@ -106,6 +109,7 @@ private:
     double measureDepth( cv::Mat depth_roi );
     double measureInter( MappingData &md1, MappingData &md2 );
     double measureSphereInter( MappingData &md1, MappingData &md2 );
+    Eigen::Vector2d measureCrosshair(MappingData &md);
 
     bool isInSight( MappingData &md );
     bool isInStamp( MappingData &md );
@@ -161,6 +165,8 @@ private:
     const double INTER_PARAM = 0.7;
     const double STAMP_PARAM = 0.9;
 
+
+    const int MAPPING_BUFFER_SIZE = 11;
     std::unique_ptr<Detector> detector_;
 
     ros::NodeHandle node_;
@@ -182,6 +188,7 @@ private:
 
     ros::Subscriber sub_image_;
     ros::Subscriber sub_depth_;
+
     // typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> SyncPolicyImageDepth;
     // typedef shared_ptr<message_filters::Synchronizer<SyncPolicyImageDepth>> SynchronizerImageDepth;
 

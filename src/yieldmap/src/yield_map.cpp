@@ -530,30 +530,7 @@ Eigen::Vector2d YieldMap::measureCrosshair(MappingData &md)
 
 bool YieldMap::isInSight(MappingData &md)
 {
-    int cnt = md.depth_boxes_.size();
-
-    if (cnt == 0)
-        return false;
-
-    
-    // Eigen::Vector2d cross = measureCrosshair(md);
-
     return abs(md.crosshair_.x() - WIDTH / 2) < 60;
-    // int sum_x = 0;
-    // int sum_y = 0;
-    // int cnt = md.depth_boxes_.size();
-
-    // if (cnt == 0)
-    //     return false;
-
-    // for (auto &v : md.depth_boxes_)
-    // {
-    //     sum_x += v.second.x + v.second.w / 2;
-    //     sum_y += v.second.y + v.second.h / 2;
-    // }
-
-    // return abs(sum_x / cnt - WIDTH / 2) < 60 && abs(sum_y / cnt - HEIGHT / 2) < 60;
-
 }
 
 bool YieldMap::isInStamp(MappingData &md)
@@ -805,10 +782,7 @@ void YieldMap::pubHConcat(MappingData &md)
         cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(255, 0, 0), 2);
         cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(255, 0, 0), 2);
         cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(0, 0, 0), 2);
-
-
     }
-
 
 
     // Draw crosshair region box

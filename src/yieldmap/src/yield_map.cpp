@@ -791,7 +791,7 @@ void YieldMap::pubHConcat(MappingData &md)
         // cv::circle(concat, cv::Point2f(md.crosshair_.x(), md.crosshair_.y()), 5, cv::Scalar(0, 0, 255), 2);
         cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(255, 0, 0), 2);
         cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(255, 0, 0), 2);
-        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(0, 0, 0), 2);
+        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(255, 0, 255), 2, 16);
     }
 
 
@@ -830,10 +830,14 @@ void YieldMap::pubYieldMap(MappingData &md)
     header.stamp = ros::Time::now();
     header.frame_id = "world";
 
+    /*
+        Delete old stamped sphere
+    */
     visualization_msgs::Marker marker;
     marker.header = header;
     marker.action = visualization_msgs::Marker::DELETEALL;
     markerArray.markers.push_back(marker);
+
 
     for (auto &v : md.depth_boxes_)
     {
@@ -882,7 +886,6 @@ void YieldMap::pubYieldMap(MappingData &md)
         marker.color.g = 0;
         marker.color.b = 1;
         marker.color.a = 0.25;
-
 
         markerArray.markers.push_back(marker);
        

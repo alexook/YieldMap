@@ -8,6 +8,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     pub_marker_ = node_.advertise<visualization_msgs::Marker>("/yieldmap/marker", 1);
     pub_rviz_click_ = node_.advertise<sensor_msgs::Image>("/yieldmap/rviz_res", 1);
     pub_camera_pose_visual_ = node_.advertise<visualization_msgs::MarkerArray>("/yieldmap/camera_pose_visual", 1);    
+    pub_stamp_visual_ = node_.advertise<visualization_msgs::MarkerArray>("/yieldmap/stamp_visual", 1);    
     
     sub_rviz_click_ = node_.subscribe("/clicked_point", 1, &YieldMap::rvizClickCallback, this);
 
@@ -649,7 +650,11 @@ void YieldMap::pubCubeMarker( MappingData &md )
 
 void YieldMap::pubSphreMarker( MappingData &md )
 {
-    // ros header
+
+
+    /*
+        Publish Camera pose viusal
+    */
     std_msgs::Header header;
     header.stamp = ros::Time::now();
     header.frame_id = "world";
@@ -673,15 +678,16 @@ void YieldMap::pubSphreMarker( MappingData &md )
     {
         cameraposevisual.setImageBoundaryColor(1, 77.0 / 225.0, 64 / 255.0, 1);
         cameraposevisual.setOpticalCenterConnectorColor(1, 77.0 / 225.0, 64 / 255.0, 1);
-
     }
 
     cameraposevisual.reset();
     cameraposevisual.add_pose(Eigen::Vector3d(P.x(), P.y(), P.z()), Eigen::Quaterniond(R.w(), R.x(), R.y(), R.z()));
     cameraposevisual.publish_by(pub_camera_pose_visual_, header);
 
+
+
     /*
-        Publish Sphere
+        Publish Current Sphere
     */
     visualization_msgs::Marker marker;
     marker.type = visualization_msgs::Marker::SPHERE;
@@ -699,6 +705,10 @@ void YieldMap::pubSphreMarker( MappingData &md )
     marker.color.a = 0.25;
 
     pub_marker_.publish(marker);
+
+
+
+
 }
 
 void YieldMap::pubHConcat(MappingData &md)
@@ -812,6 +822,15 @@ void YieldMap::pubYieldMap(MappingData &md)
     sensor_msgs::PointCloud2 proj_cloud;
     sensor_msgs::PointCloud det_cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr mergedCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    
+    visualization_msgs::MarkerArray marker_array;
+
+    marker_array.markers.clear();
+
+    std_msgs::Header header;
+    header.stamp = ros::Time::now();
+    header.frame_id = "world";
+
 
     for (auto &v : md.depth_boxes_)
     {
@@ -827,6 +846,7 @@ void YieldMap::pubYieldMap(MappingData &md)
 
     for (auto &m : mapping_data_list_)
     {
+        
         if(isInter(md, m)) continue;
 
         *mergedCloud += *m.proj_pts_;
@@ -840,18 +860,42 @@ void YieldMap::pubYieldMap(MappingData &md)
             det_cloud.points.push_back(p);
         }
 
+
+        visualization_msgs::Marker marker;
+        marker.type = visualization_msgs::Marker::SPHERE;
+        // marker.action = visualization_msgs::Marker::ADD;
+        marker.id = m.frame_cnt_;
+        marker.header = header;
+        marker.scale.x = 1.6;
+        marker.scale.y = 1.6;
+        marker.scale.z = 1.6;
+        marker.pose.position.x = m.sphere_.x();
+        marker.pose.position.y = m.sphere_.y();
+        marker.pose.position.z = m.sphere_.z();
+
+        marker.color.r = 1;
+        marker.color.g = 0;
+        marker.color.b = 1;
+        marker.color.a = 0.25;
+        marker_array.markers.push_back(marker);
+        // ROS INFO marker_array markers size
+        ROS_INFO("for loop marker_array markers size : %d", marker_array.markers.size());
+
+        
     }
 
     pcl::toROSMsg(*mergedCloud, proj_cloud);
 
-    std_msgs::Header header;
-    header.stamp = ros::Time::now();
-    header.frame_id = "world";
+
     proj_cloud.header = header;
     det_cloud.header = header;
 
     pub_proj_depth_.publish(proj_cloud);
     pub_detected_.publish(det_cloud);
+
+    // ROS INFO marker_array markers size
+    ROS_INFO("pub marker_array markers size : %d", marker_array.markers.size());
+    pub_stamp_visual_.publish(marker_array);
 
     pubSphreMarker(md);
 

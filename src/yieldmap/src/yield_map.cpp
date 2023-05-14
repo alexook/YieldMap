@@ -8,7 +8,7 @@ YieldMap::YieldMap(ros::NodeHandle &nh) : node_(nh)
     pub_marker_ = node_.advertise<visualization_msgs::Marker>("/yieldmap/marker", 1);
     pub_rviz_click_ = node_.advertise<sensor_msgs::Image>("/yieldmap/rviz_res", 1);
     pub_camera_pose_visual_ = node_.advertise<visualization_msgs::MarkerArray>("/yieldmap/camera_pose_visual", 1);    
-    pub_stamp_visual_ = node_.advertise<visualization_msgs::MarkerArray>("/yieldmap/stamp_visual", 1);    
+    pub_stamped_visual_ = node_.advertise<visualization_msgs::MarkerArray>("/yieldmap/stamp_visual", 1);    
     
     sub_rviz_click_ = node_.subscribe("/clicked_point", 1, &YieldMap::rvizClickCallback, this);
 
@@ -823,14 +823,17 @@ void YieldMap::pubYieldMap(MappingData &md)
     sensor_msgs::PointCloud det_cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr mergedCloud(new pcl::PointCloud<pcl::PointXYZ>);
     
-    visualization_msgs::MarkerArray marker_array;
+    visualization_msgs::MarkerArray markerArray;
 
-    marker_array.markers.clear();
 
     std_msgs::Header header;
     header.stamp = ros::Time::now();
     header.frame_id = "world";
 
+    visualization_msgs::Marker marker;
+    marker.header = header;
+    marker.action = visualization_msgs::Marker::DELETEALL;
+    markerArray.markers.push_back(marker);
 
     for (auto &v : md.depth_boxes_)
     {
@@ -844,9 +847,11 @@ void YieldMap::pubYieldMap(MappingData &md)
     if (md.has_cloud_)
         *mergedCloud = *md.proj_pts_;
 
+    int index = 0;
     for (auto &m : mapping_data_list_)
     {
-        
+        index++;
+
         if(isInter(md, m)) continue;
 
         *mergedCloud += *m.proj_pts_;
@@ -863,8 +868,8 @@ void YieldMap::pubYieldMap(MappingData &md)
 
         visualization_msgs::Marker marker;
         marker.type = visualization_msgs::Marker::SPHERE;
-        // marker.action = visualization_msgs::Marker::ADD;
-        marker.id = m.frame_cnt_;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.id = index;
         marker.header = header;
         marker.scale.x = 1.6;
         marker.scale.y = 1.6;
@@ -877,11 +882,10 @@ void YieldMap::pubYieldMap(MappingData &md)
         marker.color.g = 0;
         marker.color.b = 1;
         marker.color.a = 0.25;
-        marker_array.markers.push_back(marker);
-        // ROS INFO marker_array markers size
-        ROS_INFO("for loop marker_array markers size : %d", marker_array.markers.size());
 
-        
+
+        markerArray.markers.push_back(marker);
+       
     }
 
     pcl::toROSMsg(*mergedCloud, proj_cloud);
@@ -893,10 +897,7 @@ void YieldMap::pubYieldMap(MappingData &md)
     pub_proj_depth_.publish(proj_cloud);
     pub_detected_.publish(det_cloud);
 
-    // ROS INFO marker_array markers size
-    ROS_INFO("pub marker_array markers size : %d", marker_array.markers.size());
-    pub_stamp_visual_.publish(marker_array);
-
+    pub_stamped_visual_.publish(markerArray);
     pubSphreMarker(md);
 
 }

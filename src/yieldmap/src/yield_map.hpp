@@ -185,7 +185,7 @@ private:
     ros::Subscriber sub_rviz_click_;
 
     ros::Publisher pub_camera_pose_visual_;
-    ros::Publisher pub_stamp_visual_;
+    ros::Publisher pub_stamped_visual_;
 
     ros::Subscriber sub_image_;
     ros::Subscriber sub_depth_;

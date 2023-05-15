@@ -32,7 +32,11 @@
 #include <pcl/point_types.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
-
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/common/transforms.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/filters/extract_indices.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -115,6 +119,7 @@ private:
     double measureSphereInter( MappingData &md1, MappingData &md2 );
     double measureSphereInter2( MappingData &md1, MappingData &md2 );
     Eigen::Vector2d measureCrosshair(MappingData &md);
+    void measureProjSphere(MappingData &md);
 
     bool isInSight( MappingData &md );
     bool isInStamp( MappingData &md );

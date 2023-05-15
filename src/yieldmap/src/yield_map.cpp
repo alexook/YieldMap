@@ -407,6 +407,9 @@ void YieldMap::measureProject(MappingData &md)
 
     if (proj_points_cnt_)
     {
+        /*
+            filter pointcloud
+        */
         fil.setInputCloud(proj_pts_in);
         fil.setMeanK(50);
         fil.setStddevMulThresh(1.0);
@@ -419,6 +422,14 @@ void YieldMap::measureProject(MappingData &md)
         md.proj_pts_ = proj_pts_in;
         md.has_cloud_ = true;
         // ROS_WARN("proj_points_cnt = %d", proj_pts_in->size());
+
+
+        /*
+            measure proj sphere
+        */
+        measureProjSphere(md);
+
+
     }
     else
     {
@@ -426,6 +437,9 @@ void YieldMap::measureProject(MappingData &md)
     }
 
 }
+
+
+
 
 double YieldMap::measureDepth( cv::Mat depth_roi)
 {
@@ -533,12 +547,19 @@ double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
 {
 
-    double d = sqrt(pow(md1.proj_sphere_.x() - md2.proj_sphere_.x(), 2) + 
-                            pow(md1.proj_sphere_.y() - md2.proj_sphere_.y(), 2) + 
-                            pow(md1.proj_sphere_.z() - md2.proj_sphere_.z(), 2));
+    // double d = sqrt(pow(md1.proj_sphere_.x() - md2.proj_sphere_.x(), 2) + 
+    //                         pow(md1.proj_sphere_.y() - md2.proj_sphere_.y(), 2) + 
+    //                         pow(md1.proj_sphere_.z() - md2.proj_sphere_.z(), 2));
 
-    double r1 = md1.proj_sphere_radius_;
-    double r2 = md2.proj_sphere_radius_;
+    // double r1 = md1.proj_sphere_radius_;
+    // double r2 = md2.proj_sphere_radius_;
+
+    double d = sqrt(pow(md1.raycasting_sphere_.x() - md2.raycasting_sphere_.x(), 2) + 
+                            pow(md1.raycasting_sphere_.y() - md2.raycasting_sphere_.y(), 2) + 
+                            pow(md1.raycasting_sphere_.z() - md2.raycasting_sphere_.z(), 2));
+
+    double r1 = 0.8;
+    double r2 = 0.8;
 
     if ( d >  r1 + r2 )
     {
@@ -550,7 +571,9 @@ double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
         return 1.0;
     }
 
-    double area = r1 * r1 * acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1)) + r2 * r2 * acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2)) - 0.5 * sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2));
+    double area = r1 * r1 * acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1)) + 
+                    r2 * r2 * acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2)) 
+                    - 0.5 * sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2));
     
     // ROS info ouput d area
     ROS_INFO("d = %f, area = %f", d, area);
@@ -570,6 +593,34 @@ Eigen::Vector2d YieldMap::measureCrosshair(MappingData &md)
     }
 
     return Eigen::Vector2d(sum_x / cnt, sum_y / cnt);
+}
+
+void YieldMap::measureProjSphere(MappingData &md)
+{
+    // pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+    // kdtree.setInputCloud(md.proj_pts_);
+    // std::vector<int> indices;
+    // std::vector<float> distances;
+    // kdtree.nearestKSearch(pcl::PointXYZ(md.proj_sphere_.x(), md.proj_sphere_.y(),md.proj_sphere_.z()), 1, indices, distances);
+    
+    // Eigen::Vector4f centroid;
+    // pcl::compute3DCentroid(*md.proj_pts_, indices, centroid);
+
+    // // ROS info output md.raycasting_sphere_
+    // ROS_INFO("md.raycasting_sphere_ = %f, %f, %f", md.raycasting_sphere_.x(), md.raycasting_sphere_.y(), md.raycasting_sphere_.z());
+    // // ROS info output centroid
+    // ROS_INFO("centroid = %f, %f, %f", centroid.x(), centroid.y(), centroid.z());
+    // // ROS info output radius
+    // ROS_INFO("radius = %f", sqrt(distances.back()));
+    // md.proj_sphere_ = Eigen::Vector3d(centroid.x(), centroid.y(), centroid.z());
+    // md.proj_sphere_radius_ = sqrt(distances.back());
+
+    pcl::SACSegmentation<pcl::PointXYZ> seg;
+    seg.setModelType(pcl::SACMODEL_SPHERE);
+    seg.setMethodType(pcl::SAC_RANSAC);
+    seg.setDistanceThreshold(0.01);
+    seg.setInputCloud(cloud);
+
 }
 
 bool YieldMap::isInSight(MappingData &md)
@@ -912,17 +963,17 @@ void YieldMap::pubYieldMap(MappingData &md)
         marker.action = visualization_msgs::Marker::ADD;
         marker.id = index;
         marker.header = header;
-        marker.scale.x = 1.6;
-        marker.scale.y = 1.6;
-        marker.scale.z = 1.6;
-        marker.pose.position.x = m.raycasting_sphere_.x();
-        marker.pose.position.y = m.raycasting_sphere_.y();
-        marker.pose.position.z = m.raycasting_sphere_.z();
+        marker.scale.x = m.proj_sphere_radius_ * 2;
+        marker.scale.y = m.proj_sphere_radius_ * 2;
+        marker.scale.z = m.proj_sphere_radius_ * 2;
+        marker.pose.position.x = m.proj_sphere_.x();
+        marker.pose.position.y = m.proj_sphere_.y();
+        marker.pose.position.z = m.proj_sphere_.z();
 
         marker.color.r = 1;
         marker.color.g = 0;
         marker.color.b = 1;
-        marker.color.a = 0.25;
+        marker.color.a = 0.20;
 
         markerArray.markers.push_back(marker);
        

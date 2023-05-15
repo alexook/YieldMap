@@ -127,7 +127,8 @@ void YieldMap::prepareThread()
             mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
             // mapping_data.center_ = Eigen::Vector2d(x.x(), x.y());
             mapping_data.raycasting_sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
-
+            mapping_data.proj_sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
+            mapping_data.proj_sphere_radius_ = 0.8;
             mapping_data.body2world_ = body2world;
             mapping_data.camera2body_ = camera2body;
             mapping_data.has_odom_ = true;
@@ -404,20 +405,26 @@ void YieldMap::measureProject(MappingData &md)
 
     }
 
-    fil.setInputCloud(proj_pts_in);
-    fil.setMeanK(50);
-    fil.setStddevMulThresh(1.0);
-    fil.filter(*proj_pts_out);
+    if (proj_points_cnt_)
+    {
+        fil.setInputCloud(proj_pts_in);
+        fil.setMeanK(50);
+        fil.setStddevMulThresh(1.0);
+        fil.filter(*proj_pts_out);
 
-    sor.setInputCloud(proj_pts_out);
-    sor.setLeafSize(0.04f, 0.04f, 0.04f);
-    sor.filter(*proj_pts_in);
+        sor.setInputCloud(proj_pts_out);
+        sor.setLeafSize(0.04f, 0.04f, 0.04f);
+        sor.filter(*proj_pts_in);
 
+        md.proj_pts_ = proj_pts_in;
+        md.has_cloud_ = true;
+        // ROS_WARN("proj_points_cnt = %d", proj_pts_in->size());
+    }
+    else
+    {
+        md.has_cloud_ = false;
+    }
 
-    md.proj_pts_ = proj_pts_in;
-    md.has_cloud_ = true;
-    ROS_WARN("proj_points_cnt = %d", proj_pts_in->size());
-    
 }
 
 double YieldMap::measureDepth( cv::Mat depth_roi)
@@ -533,23 +540,21 @@ double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
     double r1 = md1.proj_sphere_radius_;
     double r2 = md2.proj_sphere_radius_;
 
-
     if ( d >  r1 + r2 )
     {
         return 0;
     }
 
-    if ( d < abs(r1 - r2) )
+    if ( d < abs(r1 - r2) + 0.01 )
     {
         return 1.0;
     }
 
-    double h1 = r1 - (r1 * r1 - r2 * r2 + d * d);
-    double h2 = r2 - (r2 * r2 - r1 * r1 + d * d);
-
-    double V_inter = M_PI / 3 * h1 * h1 * (3 * r1 - h1) + M_PI / 3 * h2 * h2 * (3 * r2 - h2);
-
-    return V_inter / (4 / 3 * M_PI * r1 * r1) + (4 / 3 * M_PI * r2 * r2) - V_inter;
+    double area = r1 * r1 * acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1)) + r2 * r2 * acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2)) - 0.5 * sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2));
+    
+    // ROS info ouput d area
+    ROS_INFO("d = %f, area = %f", d, area);
+    return area / (M_PI * r1 * r1);
 }
 
 Eigen::Vector2d YieldMap::measureCrosshair(MappingData &md)
@@ -593,7 +598,7 @@ bool YieldMap::isInMap(MappingData &md)
 
 bool YieldMap::isInter(MappingData &md1, MappingData &md2)
 {
-    return (measureSphereInter(md1, md2)) > INTER_PARAM;
+    return (measureSphereInter2(md1, md2)) > INTER_PARAM;
 }
 
 void YieldMap::pubMarker( MappingData &md )

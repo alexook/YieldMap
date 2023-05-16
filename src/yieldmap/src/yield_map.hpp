@@ -216,6 +216,7 @@ private:
 
     std::list< MappingData > mapping_data_list_;
 
+    
 
     std::atomic<int> detect_fps_;
     std::atomic<int> mapping_fps_;

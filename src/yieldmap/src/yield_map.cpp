@@ -344,18 +344,66 @@ void YieldMap::processThread()
                 }
                 else
                 {
-                    if ( isInMap(newest_data) )
+
+                    /*
+                        if had in list
+                    */
+                    // if ( isInMap(newest_data) )
+                    // {
+                    //     mapping_data_list_.remove_if([&]( MappingData &it) 
+                    //     { return isInter(it, newest_data ); });
+                    // }
+
+                    std::vector<int> pointIdxRadiusSearch;
+                    std::vector<float> pointRadiusSquaredDistance;
+                    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+                    pcl::PointCloud<pcl::PointXYZ>::Ptr obj(new pcl::PointCloud<pcl::PointXYZ>);
+                    for(auto l : mapping_data_list_)
                     {
-                        mapping_data_list_.remove_if([&]( MappingData &it) 
-                        { return isInter(it, newest_data ); });
+                        obj->points.push_back(pcl::PointXYZ(l.proj_sphere_.x(), l.proj_sphere_.y(), l.proj_sphere_.z()));
                     }
-                    mapping_data_list_.push_back(newest_data);
+
+                    kdtree.setInputCloud(obj);
+
+                    if(kdtree.radiusSearch(pcl::PointXYZ(newest_data.proj_sphere_.x(), newest_data.proj_sphere_.y(), newest_data.proj_sphere_.z())
+                                                , 1, pointIdxRadiusSearch, pointRadiusSquaredDistance))
+                    {
+                        // ros info ouput pointIdxRadiusSearch size
+                        ROS_WARN("KD tree: pointIdxRadiusSearch size: %d", pointIdxRadiusSearch.size());
+
+                        
+                        // for(auto p : pointIdxRadiusSearch)
+                        // {
+                        //     if (isInter(*next(mapping_data_list_.begin(), p), newest_data))
+                        //     {
+                        //         mapping_data_list_.erase(next(mapping_data_list_.begin(), p));
+                        //         mapping_data_list_.push_back(newest_data);
+                        //     }
+                        // }
+                        if (isInter(*next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]), newest_data))
+                        {
+                            mapping_data_list_.erase(next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]));
+                            mapping_data_list_.push_back(newest_data);
+                        }
+
+
+                    }
+                    else
+                    {
+                        /*
+                            New data, push back
+                        */
+                        ROS_WARN("KD tree: New data, push back");
+                        mapping_data_list_.push_back(newest_data);
+                    }
+
+
                 }
 
             }
 
             // cout mapping_data_list_ size
-            cout << "mapping_data_list_ size: " << mapping_data_list_.size() << endl;
+            // cout << "mapping_data_list_ size: " << mapping_data_list_.size() << endl;
             pubYieldMap(newest_data);
         }
 
@@ -441,7 +489,6 @@ void YieldMap::measureProject(MappingData &md)
     }
 
 }
-
 
 double YieldMap::measureDepth( cv::Mat depth_roi)
 {
@@ -565,11 +612,13 @@ double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
 
     if ( d >  r1 + r2 )
     {
+        ROS_INFO("d >  r1 + r2");
         return 0;
     }
 
     if ( d < abs(r1 - r2) + 0.01 )
     {
+        ROS_INFO("d < abs(r1 - r2) + 0.01");
         return 1.0;
     }
 
@@ -968,6 +1017,7 @@ void YieldMap::pubYieldMap(MappingData &md)
     {
         index++;
 
+        ROS_INFO("YieldMap: MAPPING DATA LIST SIZE: %d", mapping_data_list_.size());
         if(isInter(md, m)) continue;
 
         *mergedCloud += *m.proj_pts_;

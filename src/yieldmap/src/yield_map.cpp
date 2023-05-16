@@ -380,6 +380,10 @@ void YieldMap::measureProject(MappingData &md)
     pcl::VoxelGrid<pcl::PointXYZ> sor;
 
 
+    /*
+        Project depth image
+    */
+
     int proj_points_cnt_ = 0;
 
     for (int v = DEPTH_MARGIN_Y; v < ROWS - DEPTH_MARGIN_Y; v += SKIP_PIXEL)
@@ -437,8 +441,6 @@ void YieldMap::measureProject(MappingData &md)
     }
 
 }
-
-
 
 
 double YieldMap::measureDepth( cv::Mat depth_roi)
@@ -619,17 +621,30 @@ void YieldMap::measureProjSphere(MappingData &md)
     double sum_y = 0;
     double sum_z = 0;
     int p_cnt = md.proj_pts_->points.size();
+    Eigen::Vector3d centroid;
+    double max_radius = 0;
+
     for (auto p : md.proj_pts_->points)
     {
         sum_x += p.x;
         sum_y += p.y;
         sum_z += p.z;
     }
+    centroid = Eigen::Vector3d(sum_x / p_cnt, sum_y / p_cnt, sum_z / p_cnt);
 
+    for (auto p : md.proj_pts_->points)
+    {
+        // 计算当前点到球心的距离
+        double distance = (Eigen::Vector3d(p.x, p.y, p.z) - centroid).norm();
+
+        // 更新最大球半径
+        if (distance > max_radius)
+            max_radius = distance;
+    }
 
     md.proj_sphere_ = Eigen::Vector3d(sum_x / p_cnt, sum_y / p_cnt, sum_z / p_cnt);
 
-    md.proj_sphere_radius_ = 0.5;
+    md.proj_sphere_radius_ = max_radius;
 }
 
 bool YieldMap::isInSight(MappingData &md)

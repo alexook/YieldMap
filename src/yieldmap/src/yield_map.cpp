@@ -615,12 +615,21 @@ void YieldMap::measureProjSphere(MappingData &md)
     // md.proj_sphere_ = Eigen::Vector3d(centroid.x(), centroid.y(), centroid.z());
     // md.proj_sphere_radius_ = sqrt(distances.back());
 
-    pcl::SACSegmentation<pcl::PointXYZ> seg;
-    seg.setModelType(pcl::SACMODEL_SPHERE);
-    seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(0.01);
-    seg.setInputCloud(cloud);
+    double sum_x = 0;
+    double sum_y = 0;
+    double sum_z = 0;
+    int p_cnt = md.proj_pts_->points.size();
+    for (auto p : md.proj_pts_->points)
+    {
+        sum_x += p.x;
+        sum_y += p.y;
+        sum_z += p.z;
+    }
 
+
+    md.proj_sphere_ = Eigen::Vector3d(sum_x / p_cnt, sum_y / p_cnt, sum_z / p_cnt);
+
+    md.proj_sphere_radius_ = 0.5;
 }
 
 bool YieldMap::isInSight(MappingData &md)

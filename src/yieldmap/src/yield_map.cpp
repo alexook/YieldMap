@@ -344,9 +344,8 @@ void YieldMap::processThread()
                 }
                 else
                 {
-
                     /*
-                        if had in list
+                        if had in list , old mathod
                     */
                     // if ( isInMap(newest_data) )
                     // {
@@ -354,6 +353,9 @@ void YieldMap::processThread()
                     //     { return isInter(it, newest_data ); });
                     // }
 
+                    /*
+                        if had in list , kdtree mathod
+                    */
                     std::vector<int> pointIdxRadiusSearch;
                     std::vector<float> pointRadiusSquaredDistance;
                     pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
@@ -385,7 +387,6 @@ void YieldMap::processThread()
                             mapping_data_list_.erase(next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]));
                             mapping_data_list_.push_back(newest_data);
                         }
-
 
                     }
                     else

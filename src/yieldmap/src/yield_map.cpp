@@ -154,7 +154,7 @@ void YieldMap::prepareThread()
             cv::Mat depth_raw = depth_buffer_[0].second;
             double init_time = image_buffer_.back().first.toSec();
             depth_raw.convertTo(depth_draw, CV_8U, 255.0/4095.0);
-            cv::applyColorMap(depth_draw, depth_draw, cv::COLORMAP_TURBO);
+            cv::applyColorMap(depth_draw, depth_draw, cv::COLORMAP_JET);
             image_ptr = detector_->mat_to_image_resize(image_raw);
 
             mapping_data.image_raw_ = image_raw.clone();
@@ -412,10 +412,10 @@ void YieldMap::processThread()
             pubYieldMap(newest_data);
 
         }
-                auto end = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double> diff = end-start;
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff = end - start;
 
-                ROS_WARN("processThread time: %f", diff.count());
+        ROS_WARN("processThread time: %f", diff.count());
         std::this_thread::sleep_for(std::chrono::milliseconds(mapping_rate));
     }
 

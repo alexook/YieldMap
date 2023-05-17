@@ -98,7 +98,7 @@ void YieldMap::prepareThread()
         // ROS_INFO("prepareThread running...");
         try
         {
-            tf::Point p1, p2, p3, p4, x;
+            tf::Point x;
             tf::StampedTransform body2world;
             tf::StampedTransform camera2body;
 
@@ -115,18 +115,19 @@ void YieldMap::prepareThread()
               (p4)       (p3)
             
             */
-            p1 = body2world * tf::Point(RAYCAST_DEPTH, RAYCAST_BREADTH, 0);
-            p2 = body2world * tf::Point(RAYCAST_DEPTH, -RAYCAST_BREADTH, 0);
-            p3 = body2world * tf::Point(RAYCAST_DEPTH - 2 * RAYCAST_BREADTH, -RAYCAST_BREADTH, 0);
-            p4 = body2world * tf::Point(RAYCAST_DEPTH - 2 * RAYCAST_BREADTH, RAYCAST_BREADTH, 0);
+            // p1 = body2world * tf::Point(RAYCAST_DEPTH, RAYCAST_BREADTH, 0);
+            // p2 = body2world * tf::Point(RAYCAST_DEPTH, -RAYCAST_BREADTH, 0);
+            // p3 = body2world * tf::Point(RAYCAST_DEPTH - 2 * RAYCAST_BREADTH, -RAYCAST_BREADTH, 0);
+            // p4 = body2world * tf::Point(RAYCAST_DEPTH - 2 * RAYCAST_BREADTH, RAYCAST_BREADTH, 0);
+
             x = body2world * tf::Point(RAYCAST_DEPTH - RAYCAST_BREADTH, 0, 0);
 
-            mapping_data.p1_ = Eigen::Vector2d(p1.x(), p1.y());
-            mapping_data.p2_ = Eigen::Vector2d(p2.x(), p2.y());
-            mapping_data.p3_ = Eigen::Vector2d(p3.x(), p3.y());
-            mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
+            // mapping_data.p1_ = Eigen::Vector2d(p1.x(), p1.y());
+            // mapping_data.p2_ = Eigen::Vector2d(p2.x(), p2.y());
+            // mapping_data.p3_ = Eigen::Vector2d(p3.x(), p3.y());
+            // mapping_data.p4_ = Eigen::Vector2d(p4.x(), p4.y());
             // mapping_data.center_ = Eigen::Vector2d(x.x(), x.y());
-            mapping_data.raycasting_sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
+            mapping_data.fov_sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
             mapping_data.proj_sphere_ = Eigen::Vector3d(x.x(), x.y(), x.z());
             mapping_data.proj_sphere_radius_ = 0.8;
             mapping_data.body2world_ = body2world;
@@ -320,6 +321,8 @@ void YieldMap::processThread()
     
     while(!exit_flag)
     {
+        auto start = std::chrono::high_resolution_clock::now();
+
         // ROS_INFO("processThread running...");
         if (!mapping_data_buf_.empty())
         {
@@ -407,8 +410,12 @@ void YieldMap::processThread()
             // cout mapping_data_list_ size
             // cout << "mapping_data_list_ size: " << mapping_data_list_.size() << endl;
             pubYieldMap(newest_data);
-        }
 
+        }
+                auto end = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> diff = end-start;
+
+                ROS_WARN("processThread time: %f", diff.count());
         std::this_thread::sleep_for(std::chrono::milliseconds(mapping_rate));
     }
 
@@ -549,7 +556,7 @@ double YieldMap::measureDepth( cv::Mat depth_roi)
 
 double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 {
-    // double distance = sqrt(pow(md1.raycasting_sphere_.x() - md2.raycasting_sphere_.x(), 2) + pow(md1.raycasting_sphere_.y() - md2.raycasting_sphere_.y(), 2));
+    // double distance = sqrt(pow(md1.fov_sphere_.x() - md2.fov_sphere_.x(), 2) + pow(md1.fov_sphere_.y() - md2.fov_sphere_.y(), 2));
     // double radius = RAYCAST_BREADTH;
 
     // if ( distance > 2 * radius ) 
@@ -574,9 +581,9 @@ double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 {
 
-    double distance = sqrt(pow(md1.raycasting_sphere_.x() - md2.raycasting_sphere_.x(), 2) + 
-                            pow(md1.raycasting_sphere_.y() - md2.raycasting_sphere_.y(), 2) + 
-                            pow(md1.raycasting_sphere_.z() - md2.raycasting_sphere_.z(), 2));
+    double distance = sqrt(pow(md1.fov_sphere_.x() - md2.fov_sphere_.x(), 2) + 
+                            pow(md1.fov_sphere_.y() - md2.fov_sphere_.y(), 2) + 
+                            pow(md1.fov_sphere_.z() - md2.fov_sphere_.z(), 2));
 
     double radius = RAYCAST_BREADTH;
 
@@ -605,9 +612,9 @@ double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
     // double r1 = md1.proj_sphere_radius_;
     // double r2 = md2.proj_sphere_radius_;
 
-    double d = sqrt(pow(md1.raycasting_sphere_.x() - md2.raycasting_sphere_.x(), 2) + 
-                            pow(md1.raycasting_sphere_.y() - md2.raycasting_sphere_.y(), 2) + 
-                            pow(md1.raycasting_sphere_.z() - md2.raycasting_sphere_.z(), 2));
+    double d = sqrt(pow(md1.fov_sphere_.x() - md2.fov_sphere_.x(), 2) + 
+                            pow(md1.fov_sphere_.y() - md2.fov_sphere_.y(), 2) + 
+                            pow(md1.fov_sphere_.z() - md2.fov_sphere_.z(), 2));
 
     double r1 = 0.8;
     double r2 = 0.8;
@@ -659,8 +666,8 @@ void YieldMap::measureProjSphere(MappingData &md)
     // Eigen::Vector4f centroid;
     // pcl::compute3DCentroid(*md.proj_pts_, indices, centroid);
 
-    // // ROS info output md.raycasting_sphere_
-    // ROS_INFO("md.raycasting_sphere_ = %f, %f, %f", md.raycasting_sphere_.x(), md.raycasting_sphere_.y(), md.raycasting_sphere_.z());
+    // // ROS info output md.fov_sphere_
+    // ROS_INFO("md.fov_sphere_ = %f, %f, %f", md.fov_sphere_.x(), md.fov_sphere_.y(), md.fov_sphere_.z());
     // // ROS info output centroid
     // ROS_INFO("centroid = %f, %f, %f", centroid.x(), centroid.y(), centroid.z());
     // // ROS info output radius
@@ -683,7 +690,9 @@ void YieldMap::measureProjSphere(MappingData &md)
     }
     centroid = Eigen::Vector3d(sum_x / p_cnt, sum_y / p_cnt, sum_z / p_cnt);
 
-
+    // auto start = std::chrono::high_resolution_clock::now();
+    // auto end = std::chrono::high_resolution_clock::now();
+    // std::chrono::duration<double> diff = end-start;
     std::vector<int> pointIdxRadiusSearch;
     std::vector<float> pointRadiusSquaredDistance;
     pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
@@ -693,7 +702,11 @@ void YieldMap::measureProjSphere(MappingData &md)
     kdtree.radiusSearch(pcl::PointXYZ(centroid.x(), centroid.y(), centroid.z()), 0.8, pointIdxRadiusSearch, pointRadiusSquaredDistance);
     
     double distance = sqrt(pointRadiusSquaredDistance.back());
-    
+
+
+
+
+    // std::cout << "Time to run code: " << diff.count() << " s\n";
     // for (auto p : md.proj_pts_->points)
     // {
     //     // 计算当前点到球心的距离
@@ -704,11 +717,13 @@ void YieldMap::measureProjSphere(MappingData &md)
     //         max_radius = distance;
     // }
 
-    // md.proj_sphere_ = centroid.head<3>();
-
     md.proj_sphere_ = Eigen::Vector3d(centroid.x(), centroid.y(), centroid.z());
 
     md.proj_sphere_radius_ = distance;
+
+
+
+
 }
 
 bool YieldMap::isInSight(MappingData &md)
@@ -743,64 +758,64 @@ bool YieldMap::isInter(MappingData &md1, MappingData &md2)
 void YieldMap::pubMarker( MappingData &md )
 {
 
-    visualization_msgs::Marker marker;
-    marker.type = visualization_msgs::Marker::LINE_STRIP;
-    marker.action = visualization_msgs::Marker::ADD;
+    // visualization_msgs::Marker marker;
+    // marker.type = visualization_msgs::Marker::LINE_STRIP;
+    // marker.action = visualization_msgs::Marker::ADD;
 
 
-    marker.header.frame_id = "world";
-    marker.header.stamp = ros::Time::now();
+    // marker.header.frame_id = "world";
+    // marker.header.stamp = ros::Time::now();
 
-    marker.scale.x = 0.03;
-    marker.scale.y = 0.03;
-    marker.scale.z = 0.03;
+    // marker.scale.x = 0.03;
+    // marker.scale.y = 0.03;
+    // marker.scale.z = 0.03;
 
-    if (md.is_stamp_)
-    {
-        marker.color.r = 0.0;
-        marker.color.g = 1.0;
-        marker.color.b = 0.0;
-    }
-    else
-    {
-        marker.color.r = 1.0;
-        marker.color.g = 0.0;
-        marker.color.b = 0.0;
-    }
+    // if (md.is_stamp_)
+    // {
+    //     marker.color.r = 0.0;
+    //     marker.color.g = 1.0;
+    //     marker.color.b = 0.0;
+    // }
+    // else
+    // {
+    //     marker.color.r = 1.0;
+    //     marker.color.g = 0.0;
+    //     marker.color.b = 0.0;
+    // }
 
-    marker.color.a = 1.0;
+    // marker.color.a = 1.0;
 
-    marker.pose.position.x = 0;
-    marker.pose.position.y = 0;
-    marker.pose.position.z = 0;
+    // marker.pose.position.x = 0;
+    // marker.pose.position.y = 0;
+    // marker.pose.position.z = 0;
 
-    marker.pose.orientation.x = 0.0;
-    marker.pose.orientation.y = 0.0;
-    marker.pose.orientation.z = 0.0;
-    marker.pose.orientation.w = 1.0;
+    // marker.pose.orientation.x = 0.0;
+    // marker.pose.orientation.y = 0.0;
+    // marker.pose.orientation.z = 0.0;
+    // marker.pose.orientation.w = 1.0;
 
-    geometry_msgs::Point p1, p2, p3, p4;
+    // geometry_msgs::Point p1, p2, p3, p4;
 
-    p1.x = md.p1_.x();
-    p1.y = md.p1_.y();
+    // p1.x = md.p1_.x();
+    // p1.y = md.p1_.y();
 
-    p2.x = md.p2_.x();
-    p2.y = md.p2_.y();
+    // p2.x = md.p2_.x();
+    // p2.y = md.p2_.y();
 
-    p3.x = md.p3_.x();
-    p3.y = md.p3_.y();
+    // p3.x = md.p3_.x();
+    // p3.y = md.p3_.y();
 
-    p4.x = md.p4_.x();
-    p4.y = md.p4_.y();
+    // p4.x = md.p4_.x();
+    // p4.y = md.p4_.y();
 
-    marker.points.push_back(p1);
-    marker.points.push_back(p2);
-    marker.points.push_back(p3);
-    marker.points.push_back(p4);
-    marker.points.push_back(p1);
+    // marker.points.push_back(p1);
+    // marker.points.push_back(p2);
+    // marker.points.push_back(p3);
+    // marker.points.push_back(p4);
+    // marker.points.push_back(p1);
 
-    // 发布marker
-    pub_marker_.publish(marker);
+    // // 发布marker
+    // pub_marker_.publish(marker);
 }
 
 void YieldMap::pubCubeMarker( MappingData &md )
@@ -813,9 +828,9 @@ void YieldMap::pubCubeMarker( MappingData &md )
     marker.scale.x = 1.0;
     marker.scale.y = 1.0;
     marker.scale.z = 1.0;
-    marker.pose.position.x = md.raycasting_sphere_.x();
-    marker.pose.position.y = md.raycasting_sphere_.y();
-    marker.pose.position.z = md.raycasting_sphere_.z();
+    marker.pose.position.x = md.fov_sphere_.x();
+    marker.pose.position.y = md.fov_sphere_.y();
+    marker.pose.position.z = md.fov_sphere_.z();
 
     marker.pose.orientation.x = md.body2world_.getRotation().x();
     marker.pose.orientation.y = md.body2world_.getRotation().y();
@@ -875,14 +890,14 @@ void YieldMap::pubSphreMarker( MappingData &md )
     marker.scale.x = 1.6;
     marker.scale.y = 1.6;
     marker.scale.z = 1.6;
-    marker.pose.position.x = md.raycasting_sphere_.x();
-    marker.pose.position.y = md.raycasting_sphere_.y();
-    marker.pose.position.z = md.raycasting_sphere_.z();
+    marker.pose.position.x = md.fov_sphere_.x();
+    marker.pose.position.y = md.fov_sphere_.y();
+    marker.pose.position.z = md.fov_sphere_.z();
 
     marker.color.r = 88.0 / 255.0;
     marker.color.g = 88.0 / 255.0;
     marker.color.b = 88.0 / 255.0;
-    marker.color.a = 0.25;
+    marker.color.a = 0.15;
 
     pub_marker_.publish(marker);
 
@@ -1134,15 +1149,15 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
 
     for (auto &m : mapping_data_list_)
     {
-        if ( sqrt( pow( x - m.raycasting_sphere_.x(), 2 ) + pow( y - m.raycasting_sphere_.y(), 2 ))  < RAYCAST_BREADTH )
+        if ( sqrt( pow( x - m.fov_sphere_.x(), 2 ) + pow( y - m.fov_sphere_.y(), 2 ))  < RAYCAST_BREADTH )
         {
             ROS_WARN("Clicked point has target: %f, %f", x, y);
             
             fruit_cnt += to_string(m.depth_boxes_.size());
-            string str = to_string(m.raycasting_sphere_.x());
+            string str = to_string(m.fov_sphere_.x());
             str = str.substr(0, str.find('.') + 3);
             fruit_loca += str + ", ";
-            str = to_string(m.raycasting_sphere_.y());
+            str = to_string(m.fov_sphere_.y());
             str = str.substr(0, str.find('.') + 3);
             fruit_loca += str + " )";
 

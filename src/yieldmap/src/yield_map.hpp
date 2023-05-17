@@ -77,16 +77,13 @@ struct MappingData
     // crosshair
     Eigen::Vector2d crosshair_;
 
-    // raycasting
-    // Eigen::Vector2d center_;
-    Eigen::Vector3d raycasting_sphere_;
-    Eigen::Vector2d p1_, p2_, p3_, p4_;
+    // filed of view FOV
+    Eigen::Vector3d fov_sphere_;
 
     // project depth data
     pcl::PointCloud<pcl::PointXYZ>::Ptr proj_pts_;
     Eigen::Vector3d proj_sphere_;
     double proj_sphere_radius_;
-
 
     // time stamp
     double init_time_;
@@ -152,7 +149,7 @@ private:
     int detect_rate;
     int mapping_rate;
 
-    const int SKIP_PIXEL = 6;
+    const int SKIP_PIXEL = 8;
     const int DEPTH_MARGIN_X = 32;
     const int DEPTH_MARGIN_Y = 32;
 
@@ -216,7 +213,6 @@ private:
 
     std::list< MappingData > mapping_data_list_;
 
-    
 
     std::atomic<int> detect_fps_;
     std::atomic<int> mapping_fps_;

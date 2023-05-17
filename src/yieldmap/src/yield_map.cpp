@@ -382,6 +382,7 @@ void YieldMap::processThread()
                         //         mapping_data_list_.push_back(newest_data);
                         //     }
                         // }
+
                         if (isInter(*next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]), newest_data))
                         {
                             mapping_data_list_.erase(next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]));
@@ -682,19 +683,32 @@ void YieldMap::measureProjSphere(MappingData &md)
     }
     centroid = Eigen::Vector3d(sum_x / p_cnt, sum_y / p_cnt, sum_z / p_cnt);
 
-    for (auto p : md.proj_pts_->points)
-    {
-        // 计算当前点到球心的距离
-        double distance = (Eigen::Vector3d(p.x, p.y, p.z) - centroid).norm();
 
-        // 更新最大球半径
-        if (distance > max_radius)
-            max_radius = distance;
-    }
+    std::vector<int> pointIdxRadiusSearch;
+    std::vector<float> pointRadiusSquaredDistance;
+    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
 
-    md.proj_sphere_ = Eigen::Vector3d(sum_x / p_cnt, sum_y / p_cnt, sum_z / p_cnt);
 
-    md.proj_sphere_radius_ = max_radius;
+    kdtree.setInputCloud(md.proj_pts_);
+    kdtree.radiusSearch(pcl::PointXYZ(centroid.x(), centroid.y(), centroid.z()), 0.8, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+    
+    double distance = sqrt(pointRadiusSquaredDistance.back());
+    
+    // for (auto p : md.proj_pts_->points)
+    // {
+    //     // 计算当前点到球心的距离
+    //     double distance = (Eigen::Vector3d(p.x, p.y, p.z) - centroid).norm();
+
+    //     // 更新最大球半径
+    //     if (distance > max_radius)
+    //         max_radius = distance;
+    // }
+
+    // md.proj_sphere_ = centroid.head<3>();
+
+    md.proj_sphere_ = Eigen::Vector3d(centroid.x(), centroid.y(), centroid.z());
+
+    md.proj_sphere_radius_ = distance;
 }
 
 bool YieldMap::isInSight(MappingData &md)

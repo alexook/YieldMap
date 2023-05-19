@@ -155,6 +155,7 @@ void YieldMap::prepareThread()
             double init_time = image_buffer_.back().first.toSec();
             depth_raw.convertTo(depth_draw, CV_8U, 255.0/4095.0);
             cv::applyColorMap(depth_draw, depth_draw, cv::COLORMAP_JET);
+
             image_ptr = detector_->mat_to_image_resize(image_raw);
 
             mapping_data.image_raw_ = image_raw.clone();
@@ -335,6 +336,22 @@ void YieldMap::processThread()
             }
             else
             {
+
+                if (newest_data.is_stamp_)
+                {
+                    for (auto it = mapping_data_list_.begin(); it != mapping_data_list_.end();)
+                    {
+                        if (measureSphereInter(*it, newest_data) > 0.8)
+                        {
+                            it = mapping_data_list_.erase(it);
+                        }
+                        else
+                        {
+                            ++it;
+                        }
+                    }
+                }
+
                 newest_data.has_cloud_ = false;
             }
 
@@ -353,55 +370,64 @@ void YieldMap::processThread()
                     // if ( isInMap(newest_data) )
                     // {
                     //     mapping_data_list_.remove_if([&]( MappingData &it) 
-                    //     { return isInter(it, newest_data ); });
+                    //     { return measureProjSphereInter(it, newest_data ) > 0.5; });
                     // }
+
+
+                    /*
+                        if had in list , mathod 2
+                    */
+                    for (auto it = mapping_data_list_.begin(); it != mapping_data_list_.end();)
+                    {
+                        if (measureProjSphereInter(*it, newest_data) > 0.5)
+                        {
+                            it = mapping_data_list_.erase(it);
+                        }
+                        else
+                        {
+                            ++it;
+                        }
+                    }
 
                     /*
                         if had in list , kdtree mathod
                     */
-                    std::vector<int> pointIdxRadiusSearch;
-                    std::vector<float> pointRadiusSquaredDistance;
-                    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-                    pcl::PointCloud<pcl::PointXYZ>::Ptr obj(new pcl::PointCloud<pcl::PointXYZ>);
-                    for(auto l : mapping_data_list_)
-                    {
-                        obj->points.push_back(pcl::PointXYZ(l.proj_sphere_.x(), l.proj_sphere_.y(), l.proj_sphere_.z()));
-                    }
+                    // std::vector<int> pointIdxRadiusSearch;
+                    // std::vector<float> pointRadiusSquaredDistance;
+                    // pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+                    // pcl::PointCloud<pcl::PointXYZ>::Ptr obj(new pcl::PointCloud<pcl::PointXYZ>);
+                    // for(auto l : mapping_data_list_)
+                    // {
+                    //     obj->points.push_back(pcl::PointXYZ(l.proj_sphere_.x(), l.proj_sphere_.y(), l.proj_sphere_.z()));
+                    // }
 
-                    kdtree.setInputCloud(obj);
+                    // kdtree.setInputCloud(obj);
 
-                    if(kdtree.radiusSearch(pcl::PointXYZ(newest_data.proj_sphere_.x(), newest_data.proj_sphere_.y(), newest_data.proj_sphere_.z())
-                                                , 1, pointIdxRadiusSearch, pointRadiusSquaredDistance))
-                    {
-                        // ros info ouput pointIdxRadiusSearch size
-                        ROS_WARN("KD tree: pointIdxRadiusSearch size: %d", pointIdxRadiusSearch.size());
+                    // if(kdtree.radiusSearch(pcl::PointXYZ(newest_data.proj_sphere_.x(), newest_data.proj_sphere_.y(), newest_data.proj_sphere_.z())
+                    //                             , 1, pointIdxRadiusSearch, pointRadiusSquaredDistance))
+                    // {
+                    //     // ros info ouput pointIdxRadiusSearch size
+                    //     ROS_WARN("KD tree: pointIdxRadiusSearch size: %d", pointIdxRadiusSearch.size());
 
                         
-                        // for(auto p : pointIdxRadiusSearch)
+
+                        // if (isInter(*next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]), newest_data))
                         // {
-                        //     if (isInter(*next(mapping_data_list_.begin(), p), newest_data))
-                        //     {
-                        //         mapping_data_list_.erase(next(mapping_data_list_.begin(), p));
-                        //         mapping_data_list_.push_back(newest_data);
-                        //     }
+                        //     mapping_data_list_.erase(next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]));
+                        //     mapping_data_list_.push_back(newest_data);
                         // }
 
-                        if (isInter(*next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]), newest_data))
-                        {
-                            mapping_data_list_.erase(next(mapping_data_list_.begin(), pointIdxRadiusSearch[0]));
-                            mapping_data_list_.push_back(newest_data);
-                        }
-
-                    }
-                    else
-                    {
-                        /*
-                            New data, push back
-                        */
+                    // }
+                    // else
+                    // {
+                    //     /*
+                    //         New data, push back
+                    //     */
+                    //     ROS_WARN("KD tree: New data, push back");
+                    //     mapping_data_list_.push_back(newest_data);
+                    // }
                         ROS_WARN("KD tree: New data, push back");
                         mapping_data_list_.push_back(newest_data);
-                    }
-
 
                 }
 
@@ -578,7 +604,7 @@ double YieldMap::measureInter( MappingData &md1, MappingData &md2 )
 
 }
 
-double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
+double YieldMap::measureSphereInter_old(MappingData &md1, MappingData &md2)
 {
 
     double distance = sqrt(pow(md1.fov_sphere_.x() - md2.fov_sphere_.x(), 2) + 
@@ -602,7 +628,7 @@ double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
     return intersect / (4 / 3 * M_PI * radius * radius);
 }
 
-double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
+double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 {
 
     // double d = sqrt(pow(md1.proj_sphere_.x() - md2.proj_sphere_.x(), 2) + 
@@ -638,6 +664,44 @@ double YieldMap::measureSphereInter2(MappingData &md1, MappingData &md2)
     // ROS info ouput d area
     ROS_INFO("d = %f, area = %f", d, area);
     return area / (M_PI * r1 * r1);
+}
+
+double YieldMap::measureProjSphereInter(MappingData &md1, MappingData &md2)
+{
+
+    // double d = sqrt(pow(md1.proj_sphere_.x() - md2.proj_sphere_.x(), 2) + 
+    //                         pow(md1.proj_sphere_.y() - md2.proj_sphere_.y(), 2) + 
+    //                         pow(md1.proj_sphere_.z() - md2.proj_sphere_.z(), 2));
+
+    // double r1 = md1.proj_sphere_radius_;
+    // double r2 = md2.proj_sphere_radius_;
+
+    double d = sqrt(pow(md1.proj_sphere_.x() - md2.proj_sphere_.x(), 2) + 
+                            pow(md1.proj_sphere_.y() - md2.proj_sphere_.y(), 2) + 
+                            pow(md1.proj_sphere_.z() - md2.proj_sphere_.z(), 2));
+
+    double r1 = md1.proj_sphere_radius_;
+    double r2 = md2.proj_sphere_radius_;
+
+    if ( d >  r1 + r2 )
+    {
+        ROS_INFO("d >  r1 + r2");
+        return 0;
+    }
+
+    if ( d < abs(r1 - r2) + 0.01 )
+    {
+        ROS_INFO("d < abs(r1 - r2) + 0.01");
+        return 1.0;
+    }
+
+    double area = r1 * r1 * acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1)) + 
+                    r2 * r2 * acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2)) 
+                    - 0.5 * sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2));
+    
+    // ROS info ouput d area
+    ROS_INFO("d = %f, area = %f", d, area);
+    return area / (M_PI * min(r1, r2) * min(r1,r2));
 }
 
 Eigen::Vector2d YieldMap::measureCrosshair(MappingData &md)
@@ -744,7 +808,7 @@ bool YieldMap::isInMap(MappingData &md)
 {
     for (auto &v : mapping_data_list_)
     {
-        if (isInter(v, md))
+        if (measureProjSphereInter(v, md) > 0.7)
             return true;
     }
     return false;
@@ -752,7 +816,7 @@ bool YieldMap::isInMap(MappingData &md)
 
 bool YieldMap::isInter(MappingData &md1, MappingData &md2)
 {
-    return (measureSphereInter2(md1, md2)) > INTER_PARAM;
+    return (measureSphereInter(md1, md2)) > INTER_PARAM;
 }
 
 void YieldMap::pubMarker( MappingData &md )

@@ -113,11 +113,12 @@ private:
     void   measureProject( MappingData &md );
     double measureDepth( cv::Mat depth_roi );
     double measureInter( MappingData &md1, MappingData &md2 );
+    double measureSphereInter_old( MappingData &md1, MappingData &md2 );
     double measureSphereInter( MappingData &md1, MappingData &md2 );
-    double measureSphereInter2( MappingData &md1, MappingData &md2 );
     Eigen::Vector2d measureCrosshair(MappingData &md);
     void measureProjSphere(MappingData &md);
-
+    double measureProjSphereInter(MappingData &md1, MappingData &md2);
+    double measureSphereInterErase(MappingData &md1, MappingData &md2);
     bool isInSight( MappingData &md );
     bool isInStamp( MappingData &md );
     bool isInMap( MappingData &md );
@@ -149,8 +150,8 @@ private:
     int detect_rate;
     int mapping_rate;
 
-    const int SKIP_PIXEL = 8;
-    const int DEPTH_MARGIN_X = 32;
+    const int SKIP_PIXEL = 6;
+    const int DEPTH_MARGIN_X = 128;
     const int DEPTH_MARGIN_Y = 32;
 
     const double DEPTH_SCALING_FACTOR = 1000;
@@ -169,8 +170,8 @@ private:
 
     const double RAYCAST_DEPTH = 2.0;
     const double RAYCAST_BREADTH = 0.8;
-    const double INTER_PARAM = 0.7;
-    const double STAMP_PARAM = 0.9;
+    const double INTER_PARAM = 0.8;
+    const double STAMP_PARAM = 0.95;
 
 
     const int MAPPING_BUFFER_SIZE = 11;

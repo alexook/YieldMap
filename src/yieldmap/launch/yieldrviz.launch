@@ -1,5 +1,5 @@
 <launch>
-    <node name="tf_test_node" pkg="tf_test" type="tf_test_node" />
+    <!-- <node name="tf_test_node" pkg="tf_test" type="tf_test_node" /> -->
     <node name="yieldmap" pkg="yieldmap" type="yield" output="screen" />
         <param name="names_file" type="string" value="$(find darknet_ros)/apple.names" />
         <param name="cfg_file" type="string" value="$(find darknet_ros)/cfg/yolov7-tiny.cfg" />

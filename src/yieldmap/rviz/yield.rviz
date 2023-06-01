@@ -6,13 +6,11 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Grid1
         - /Image1
         - /TF1
         - /TF1/Frames1
         - /PointCloud3/Autocompute Value Bounds1
-        - /PointCloud21
-        - /PointCloud21/Autocompute Value Bounds1
-        - /MarkerArray1
       Splitter Ratio: 0.5
     Tree Height: 236
   - Class: rviz/Selection
@@ -40,7 +38,7 @@ Toolbars:
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.5
+    - Alpha: 0.25
       Cell Size: 1
       Class: rviz/Grid
       Color: 160; 160; 164
@@ -55,7 +53,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 30
       Reference Frame: <Fixed Frame>
       Value: true
     - Class: rviz/Image
@@ -251,7 +249,7 @@ Visualization Manager:
       Marker Topic: /yieldmap/stamp_visual
       Name: MarkerArray
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -282,7 +280,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 8.578362464904785
+      Distance: 6.217892169952393
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -290,17 +288,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -0.48047375679016113
-        Y: 0.49722206592559814
-        Z: 1.8487004041671753
+        X: 0.6400145888328552
+        Y: -3.338517665863037
+        Z: 0.4250229597091675
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7247973680496216
+      Pitch: 0.5847976207733154
       Target Frame: <Fixed Frame>
-      Yaw: 2.914614200592041
+      Yaw: 2.944607734680176
     Saved: ~
 Window Geometry:
   Displays:

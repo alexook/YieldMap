@@ -193,7 +193,7 @@ void YieldMap::detectThread()
         std::vector<bbox_t> result_boxes;
 
         if (image_ptr)
-            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.5, true);
+            result_boxes = detector_->detect_resized(*image_ptr, 640, 480, 0.7, true);
         
         mapping_data.result_boxes_ = result_boxes;
         detect2track.send(mapping_data);
@@ -971,23 +971,13 @@ void YieldMap::pubHConcat(MappingData &md)
 {
 
     cv::Mat concat;
+    cv::Mat concatt;
+    cv::Mat concattt;
     cv::Mat img = md.image_draw_;
     cv::Mat dep = md.depth_draw_;
     std::string obj_str = "";
     std::string depth_str = "";
 
-    // if (!md.has_new_detection_)
-    // {
-    //     cv::putText(img, "No Data", cv::Point2f(480, 40), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
-
-    //     // cv::rectangle(dep, cv::Rect(WIDTH / 2 - 40, 60, 60, HEIGHT - 60 * 2), {0, 255, 0}, 3, 8);
-    //     cv::rectangle(dep, cv::Rect( DEPTH_MARGIN_X, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
-        
-    //     cv::hconcat(img, dep, concat);
-
-    //     pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());
-    //     return;
-    // }
 
     // Draw color image
     for (auto &v : md.result_boxes_)
@@ -997,16 +987,17 @@ void YieldMap::pubHConcat(MappingData &md)
         // int radius =  max((int)v.w, 20) / 2;
 
         //obj_str = std::to_string(v.track_id);
-        if (v.z_3d > 0)
+        if (v.z_3d > 0) {
             depth_str = cv::format("%.3f", v.z_3d) + "m";
+            cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(255, 0, 255), 1);
+            cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(180, 255, 0), 2);
+        }
+        else {
+            cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(0, 0, 255), 2);
 
-        // Draw boxes
-        cv::rectangle(img, cv::Rect(v.x, v.y, v.w, v.h), cv::Scalar(180, 255, 0), 2);
-        // cv::circle(img, cv::Point2f(circle_x, circle_y), radius, cv::Scalar(0, 128, 255), 2);
+        }
 
-        // Show label
-        cv::putText(img, depth_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(255, 0, 255), 1);
-        //cv::putText(img, obj_str, cv::Point2f(v.x, v.y - 3), cv::FONT_HERSHEY_COMPLEX_SMALL, 0.8, cv::Scalar(0, 255, 255), 1);
+
     }
 
     // Draw depth image
@@ -1019,7 +1010,9 @@ void YieldMap::pubHConcat(MappingData &md)
 
 
     cv::hconcat(img, dep, concat);
-
+    // For debug show raw image
+    // cv::hconcat(md.image_raw_, md.image_raw_, concatt);
+    // cv::vconcat(concat, concatt, concattt);
 
     // Draw Detect FPS
     if ( md.has_new_detection_ && detect_fps_ )
@@ -1044,9 +1037,9 @@ void YieldMap::pubHConcat(MappingData &md)
     // Draw Crosshair
     if (md.crosshair_.x() > 0 && md.crosshair_.y() > 0)
     {
-        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(255, 0, 0), 2);
-        cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(255, 0, 0), 2);
-        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(255, 0, 255), 2, 16);
+        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(0, 255, 0), 3);
+        cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(0, 255, 0), 3);
+        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(0, 0, 255), 2, 16);
     }
 
 

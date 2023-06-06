@@ -153,7 +153,7 @@ void YieldMap::prepareThread()
             cv::Mat image_raw = image_buffer_[0].second;
             cv::Mat depth_raw = depth_buffer_[0].second;
             double init_time = image_buffer_.back().first.toSec();
-            depth_raw.convertTo(depth_draw, CV_8U, 7 * 255.0/65535.0);
+            depth_raw.convertTo(depth_draw, CV_8U, 6 * 255.0/65535.0);
             cv::applyColorMap(depth_draw, depth_draw, 2);
 
             image_ptr = detector_->mat_to_image_resize(image_raw);

@@ -150,7 +150,7 @@ private:
     int detect_rate;
     int mapping_rate;
 
-    const int SKIP_PIXEL = 6;
+    const int SKIP_PIXEL = 4;
     const int DEPTH_MARGIN_X = 128;
     const int DEPTH_MARGIN_Y = 32;
 

@@ -154,8 +154,6 @@ void YieldMap::prepareThread()
             cv::Mat depth_raw = depth_buffer_[0].second;
             double init_time = image_buffer_.back().first.toSec();
             depth_raw.convertTo(depth_draw, CV_8U, 7 * 255.0/65535.0);
-            //cv::normalize(depth_raw, depth_draw, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-
             cv::applyColorMap(depth_draw, depth_draw, 2);
 
             image_ptr = detector_->mat_to_image_resize(image_raw);
@@ -1047,19 +1045,19 @@ void YieldMap::pubHConcat(MappingData &md)
 
     // Draw crosshair region box
     if (md.is_sight_)
-        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 60 + WIDTH, HEIGHT / 2 - 60, 120, 120), {230, 128, 77}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 60 + WIDTH, HEIGHT / 2 - 60, 120, 120), {0, 255, 0}, 3, 8);
     else if(md.has_detection_)
-        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 60 + WIDTH, HEIGHT / 2 - 60, 120, 120), {64, 77, 255}, 3, 8);
+        cv::rectangle(concat, cv::Rect(WIDTH / 2 - 60 + WIDTH, HEIGHT / 2 - 60, 120, 120), {0, 0, 255}, 3, 8);
 
 
 
     if(md.is_stamp_)
     {
-        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {230, 128, 77}, 3, 8);
+        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 255, 0}, 3, 8);
     }
     else
     {
-        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {64, 77, 255}, 3, 8);
+        cv::rectangle(concat, cv::Rect( DEPTH_MARGIN_X + WIDTH, DEPTH_MARGIN_Y, WIDTH - 2 * DEPTH_MARGIN_X, HEIGHT - 2 * DEPTH_MARGIN_Y ), {0, 0, 255}, 3, 8);
     }
 
     pub_hconcat_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", concat).toImageMsg());

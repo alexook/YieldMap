@@ -647,13 +647,13 @@ double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
 
     if ( d >  r1 + r2 )
     {
-        ROS_INFO("d >  r1 + r2");
+        //ROS_INFO("d >  r1 + r2");
         return 0;
     }
 
     if ( d < abs(r1 - r2) + 0.01 )
     {
-        ROS_INFO("d < abs(r1 - r2) + 0.01");
+        //ROS_INFO("d < abs(r1 - r2) + 0.01");
         return 1.0;
     }
 
@@ -662,7 +662,7 @@ double YieldMap::measureSphereInter(MappingData &md1, MappingData &md2)
                     - 0.5 * sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2));
     
     // ROS info ouput d area
-    ROS_INFO("d = %f, area = %f", d, area);
+    //ROS_INFO("d = %f, area = %f", d, area);
     return area / (M_PI * r1 * r1);
 }
 
@@ -685,13 +685,13 @@ double YieldMap::measureProjSphereInter(MappingData &md1, MappingData &md2)
 
     if ( d >  r1 + r2 )
     {
-        ROS_INFO("d >  r1 + r2");
+        //ROS_INFO("d >  r1 + r2");
         return 0;
     }
 
     if ( d < abs(r1 - r2) + 0.01 )
     {
-        ROS_INFO("d < abs(r1 - r2) + 0.01");
+        //ROS_INFO("d < abs(r1 - r2) + 0.01");
         return 1.0;
     }
 
@@ -700,7 +700,7 @@ double YieldMap::measureProjSphereInter(MappingData &md1, MappingData &md2)
                     - 0.5 * sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2));
     
     // ROS info ouput d area
-    ROS_INFO("d = %f, area = %f", d, area);
+    //ROS_INFO("d = %f, area = %f", d, area);
     return area / (M_PI * min(r1, r2) * min(r1,r2));
 }
 
@@ -1010,7 +1010,7 @@ void YieldMap::pubHConcat(MappingData &md)
 
 
     cv::hconcat(img, dep, concat);
-    // For debug show raw image
+    //For debug show raw image
     // cv::hconcat(md.image_raw_, md.image_raw_, concatt);
     // cv::vconcat(concat, concatt, concattt);
 
@@ -1037,9 +1037,9 @@ void YieldMap::pubHConcat(MappingData &md)
     // Draw Crosshair
     if (md.crosshair_.x() > 0 && md.crosshair_.y() > 0)
     {
-        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(0, 255, 0), 3);
-        cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(0, 255, 0), 3);
-        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(0, 0, 255), 2, 16);
+        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() - 60), cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y() + 60), cv::Scalar(0, 0, 255), 3);
+        cv::line(concat, cv::Point(md.crosshair_.x() - 60 + WIDTH, md.crosshair_.y()), cv::Point(md.crosshair_.x() + 60 + WIDTH, md.crosshair_.y()), cv::Scalar(0, 0, 255), 3);
+        cv::line(concat, cv::Point(md.crosshair_.x() + WIDTH, md.crosshair_.y()), cv::Point( WIDTH /2 + WIDTH, HEIGHT / 2), cv::Scalar(255, 255, 255), 2, 16);
     }
 
 
@@ -1206,29 +1206,45 @@ void YieldMap::rvizClickCallback(const geometry_msgs::PointStampedConstPtr &clic
 
     for (auto &m : mapping_data_list_)
     {
-        if ( sqrt( pow( x - m.fov_sphere_.x(), 2 ) + pow( y - m.fov_sphere_.y(), 2 ))  < RAYCAST_BREADTH )
-        {
-            ROS_WARN("Clicked point has target: %f, %f", x, y);
+        ROS_WARN("Clicked point has target: %f, %f", x, y);
             
-            fruit_cnt += to_string(m.depth_boxes_.size());
-            string str = to_string(m.fov_sphere_.x());
-            str = str.substr(0, str.find('.') + 3);
-            fruit_loca += str + ", ";
-            str = to_string(m.fov_sphere_.y());
-            str = str.substr(0, str.find('.') + 3);
-            fruit_loca += str + " )";
+        pcl::io::savePCDFileASCII("/home/omen/dark_ws/data/pcl_"+ std::to_string(m.frame_cnt_) + ".pcd", *m.proj_pts_);
+        cv::imwrite("/home/omen/dark_ws/data/depth_" + std::to_string(m.frame_cnt_) + ".png", m.depth_raw_);
+        cv::imwrite("/home/omen/dark_ws/data/dep_draw_" + std::to_string(m.frame_cnt_) + ".png", m.depth_draw_);
+        cv::imwrite("/home/omen/dark_ws/data/image_draw_" + std::to_string(m.frame_cnt_) + ".png", m.image_draw_);
+        cv::imwrite("/home/omen/dark_ws/data/image_" + std::to_string(m.frame_cnt_) + ".png", m.image_raw_);
 
-            cv::putText(info_img, fruit_cnt, cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
-            cv::putText(info_img, fruit_loca, cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
-
-            cv::vconcat(info_img, m.image_draw_, rviz_img);
-            cv::vconcat(rviz_img, m.depth_draw_, rviz_img);
-
-            pub_rviz_click_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", rviz_img).toImageMsg());
+        // if ( sqrt( pow( x - m.fov_sphere_.x(), 2 ) + pow( y - m.fov_sphere_.y(), 2 ))  < RAYCAST_BREADTH )
+        // {
+        //     ROS_WARN("Clicked point has target: %f, %f", x, y);
             
-            break;
+        //     pcl::io::savePCDFileASCII("/home/omen/dark_ws/data/pcl_"+ std::to_string(m.frame_cnt_) + ".pcd", *m.proj_pts_);
+        //     cv::imwrite("/home/omen/dark_ws/data/depth_" + std::to_string(m.frame_cnt_) + ".png", m.depth_raw_);
+        //     cv::imwrite("/home/omen/dark_ws/data/dep_draw_" + std::to_string(m.frame_cnt_) + ".png", m.depth_draw_);
+        //     cv::imwrite("/home/omen/dark_ws/data/image_draw_" + std::to_string(m.frame_cnt_) + ".png", m.image_draw_);
+        //     cv::imwrite("/home/omen/dark_ws/data/image_" + std::to_string(m.frame_cnt_) + ".png", m.image_raw_);
 
-        }
+
+        //     // fruit_cnt += to_string(m.depth_boxes_.size());
+        //     // string str = to_string(m.fov_sphere_.x());
+        //     // str = str.substr(0, str.find('.') + 3);
+        //     // fruit_loca += str + ", ";
+        //     // str = to_string(m.fov_sphere_.y());
+        //     // str = str.substr(0, str.find('.') + 3);
+        //     // fruit_loca += str + " )";
+
+        //     // cv::putText(info_img, fruit_cnt, cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+        //     // cv::putText(info_img, fruit_loca, cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+        //     // cv::vconcat(info_img, m.image_draw_, rviz_img);
+        //     // cv::vconcat(rviz_img, m.depth_draw_, rviz_img);
+
+
+        //     // pub_rviz_click_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", rviz_img).toImageMsg());
+            
+        //     break;
+
+        // }
 
     }
 }
